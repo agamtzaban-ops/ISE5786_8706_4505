@@ -4,18 +4,23 @@ import java.util.Objects;
 
 /**
  * Class Point is the basic class representing a point in a 3D system.
- * The point is represented by three coordinates (x, y, z).
+ *
  * @author [Your Name]
  */
 public class Point {
-    /** Coordinates of the point */
+    /**
+     * Coordinates of the point
+     */
     protected final Double3 _xyz;
 
-    /** Constant for the origin point (0,0,0) */
+    /**
+     * Constant for the origin point (0,0,0)
+     */
     public static final Point ZERO = new Point(Double3.ZERO);
 
     /**
-     * Constructor to initialize Point based object with its three coordinates
+     * Constructor to initialize Point with three coordinates
+     *
      * @param x first coordinate
      * @param y second coordinate
      * @param z third coordinate
@@ -25,7 +30,8 @@ public class Point {
     }
 
     /**
-     * Constructor to initialize Point based object with a Double3 object
+     * Constructor to initialize Point with a Double3 object
+     *
      * @param xyz triad of coordinates
      */
     protected Point(Double3 xyz) {
@@ -35,8 +41,7 @@ public class Point {
     @Override
     public boolean equals(Object obj) {
         if (this == obj) return true;
-        return (obj instanceof Point other)
-                && _xyz.equals(other._xyz);
+        return (obj instanceof Point other) && _xyz.equals(other._xyz);
     }
 
     @Override
@@ -50,7 +55,8 @@ public class Point {
     }
 
     /**
-     * Subtracts two points into a new vector from the second point to the first point
+     * Subtracts two points into a new vector
+     *
      * @param other the second point
      * @return the vector from other to this
      */
@@ -60,6 +66,7 @@ public class Point {
 
     /**
      * Adds a vector to the point
+     *
      * @param vector the vector to add
      * @return a new point
      */
@@ -69,6 +76,7 @@ public class Point {
 
     /**
      * Calculates the squared distance between two points
+     *
      * @param other the second point
      * @return the squared distance
      */
@@ -81,6 +89,7 @@ public class Point {
 
     /**
      * Calculates the distance between two points
+     *
      * @param other the second point
      * @return the distance
      */
