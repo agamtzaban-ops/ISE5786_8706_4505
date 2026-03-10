@@ -3,39 +3,77 @@ package primitives;
 import java.util.Objects;
 
 /**
- * Class Point is the basic class representing a point in a 3D system.
- *
- * @author [Your Name]
+ * Class Point represents a basic point in a 3D coordinate system.
  */
 public class Point {
-    /**
-     * Coordinates of the point
-     */
+
+    /** The 3D coordinates of the point */
     protected final Double3 _xyz;
 
-    /**
-     * Constant for the origin point (0,0,0)
-     */
+    /** Constant representing the origin point (0,0,0) */
     public static final Point ZERO = new Point(Double3.ZERO);
 
     /**
-     * Constructor to initialize Point with three coordinates
+     * Constructor to initialize Point with three double coordinates.
      *
-     * @param x first coordinate
-     * @param y second coordinate
-     * @param z third coordinate
+     * @param x the x coordinate
+     * @param y the y coordinate
+     * @param z the z coordinate
      */
     public Point(double x, double y, double z) {
         _xyz = new Double3(x, y, z);
     }
 
     /**
-     * Constructor to initialize Point with a Double3 object
+     * Constructor to initialize Point with a Double3 object.
      *
-     * @param xyz triad of coordinates
+     * @param xyz the Double3 containing the coordinates
      */
-    protected Point(Double3 xyz) {
+    public Point(Double3 xyz) {
         _xyz = xyz;
+    }
+
+    /**
+     * Subtracts another point from this point to create a new vector.
+     *
+     * @param other the point to subtract
+     * @return a new Vector representing the difference from the other point to this point
+     */
+    public Vector subtract(Point other) {
+        return new Vector(_xyz.subtract(other._xyz));
+    }
+
+    /**
+     * Adds a vector to this point.
+     *
+     * @param vector the vector to add
+     * @return a new Point after the addition
+     */
+    public Point add(Vector vector) {
+        return new Point(_xyz.add(vector._xyz));
+    }
+
+    /**
+     * Calculates the squared distance between this point and another point.
+     *
+     * @param other the second point
+     * @return the squared distance between the two points
+     */
+    public double distanceSquared(Point other) {
+        double dx = _xyz._d1() - other._xyz._d1();
+        double dy = _xyz._d2() - other._xyz._d2();
+        double dz = _xyz._d3() - other._xyz._d3();
+        return dx * dx + dy * dy + dz * dz;
+    }
+
+    /**
+     * Calculates the distance between this point and another point.
+     *
+     * @param other the second point
+     * @return the exact distance between the two points
+     */
+    public double distance(Point other) {
+        return Math.sqrt(distanceSquared(other));
     }
 
     @Override
@@ -51,49 +89,6 @@ public class Point {
 
     @Override
     public String toString() {
-        return "Point" + _xyz;
-    }
-
-    /**
-     * Subtracts two points into a new vector
-     *
-     * @param other the second point
-     * @return the vector from other to this
-     */
-    public Vector subtract(Point other) {
-        return new Vector(_xyz.subtract(other._xyz));
-    }
-
-    /**
-     * Adds a vector to the point
-     *
-     * @param vector the vector to add
-     * @return a new point
-     */
-    public Point add(Vector vector) {
-        return new Point(_xyz.add(vector._xyz));
-    }
-
-    /**
-     * Calculates the squared distance between two points
-     *
-     * @param other the second point
-     * @return the squared distance
-     */
-    public double distanceSquared(Point other) {
-        double dx = _xyz._d1() - other._xyz._d1();
-        double dy = _xyz._d2() - other._xyz._d2();
-        double dz = _xyz._d3() - other._xyz._d3();
-        return dx * dx + dy * dy + dz * dz;
-    }
-
-    /**
-     * Calculates the distance between two points
-     *
-     * @param other the second point
-     * @return the distance
-     */
-    public double distance(Point other) {
-        return Math.sqrt(distanceSquared(other));
+        return "Point " + _xyz;
     }
 }
