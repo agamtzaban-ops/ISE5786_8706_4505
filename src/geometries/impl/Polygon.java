@@ -1,11 +1,12 @@
 package geometries.impl;
 
-import static primitives.Util.isZero;
+import geometries.api.Geometry;
+import primitives.Point;
+import primitives.Vector;
 
 import java.util.List;
 
-import geometries.api.Geometry;
-import primitives.*;
+import static primitives.Util.isZero;
 
 /**
  * Represents a convex polygon in a 3D Cartesian coordinate system.
@@ -17,15 +18,22 @@ import primitives.*;
  * <p>
  * The polygon must be convex.
  * </p>
+ *
  * @author Dan Zilberstein
  */
 public class Polygon extends Geometry {
-    /** Ordered list of polygon vertices */
+    /**
+     * Ordered list of polygon vertices
+     */
     protected final List<Point> _vertices;
-    /** Plane containing the polygon */
-    protected final Plane       _plane;
-    /** Number of vertices */
-    private final int           _size;
+    /**
+     * Plane containing the polygon
+     */
+    protected final Plane _plane;
+    /**
+     * Number of vertices
+     */
+    private final int _size;
 
     /**
      * Constructs a convex polygon from ordered vertices.
@@ -38,7 +46,8 @@ public class Polygon extends Geometry {
      * <li>Lie in the same plane</li>
      * <li>Form a convex polygon</li>
      * </ul>
-     * @param  vertices                 polygon vertices in edge order
+     *
+     * @param vertices polygon vertices in edge order
      * @throws IllegalArgumentException if the vertices do not form a valid convex
      *                                  polygon
      */
@@ -46,17 +55,17 @@ public class Polygon extends Geometry {
         if (vertices.length < 3)
             throw new IllegalArgumentException("A polygon can't have less than 3 vertices");
         _vertices = List.of(vertices);
-        _size     = vertices.length;
+        _size = vertices.length;
 
         // Create the supporting plane using the first three vertices.
         // The plane stores the constant normal of the polygon.
-        _plane    = new Plane(vertices[0], vertices[1], vertices[2]);
+        _plane = new Plane(vertices[0], vertices[1], vertices[2]);
         if (_size == 3) return; // no need for more tests for a Triangle
 
-        Vector  n        = _plane.getNormal(vertices[0]);
+        Vector n = _plane.getNormal(vertices[0]);
         // Subtracting identical vertices would create a zero vector (illegal)
-        Vector  edge1    = vertices[_size - 1].subtract(vertices[_size - 2]);
-        Vector  edge2    = vertices[0].subtract(vertices[_size - 1]);
+        Vector edge1 = vertices[_size - 1].subtract(vertices[_size - 2]);
+        Vector edge2 = vertices[0].subtract(vertices[_size - 1]);
 
         // Cross product of consecutive edges determines orientation.
         // All edge pairs must produce the same sign relative to the normal,
@@ -75,5 +84,7 @@ public class Polygon extends Geometry {
     }
 
     @Override
-    public Vector getNormal(Point point) { return _plane.getNormal(point); }
+    public Vector getNormal(Point point) {
+        return _plane.getNormal(point);
+    }
 }

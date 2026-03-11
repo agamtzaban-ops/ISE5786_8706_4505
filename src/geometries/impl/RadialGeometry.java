@@ -7,10 +7,14 @@ import geometries.api.Geometry;
  */
 public abstract class RadialGeometry extends Geometry {
 
-    /** The radius of the geometry */
+    /**
+     * The radius of the geometry
+     */
     protected final double _radius;
 
-    /** The squared radius of the geometry */
+    /**
+     * The squared radius of the geometry
+     */
     protected final double _radiusSquared;
 
     /**

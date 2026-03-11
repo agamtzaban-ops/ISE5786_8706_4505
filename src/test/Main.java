@@ -1,10 +1,13 @@
 package test;
 
+import geometries.impl.*;
+import primitives.Double3;
+import primitives.Point;
+import primitives.Ray;
+import primitives.Vector;
+
 import static java.lang.System.out;
 import static primitives.Util.isZero;
-
-import geometries.impl.*;
-import primitives.*;
 
 /**
  * Basic sanity tests for the primitives classes.
@@ -14,32 +17,53 @@ import primitives.*;
  * several edge cases such as zero vectors and orthogonality.
  * The program prints error messages only if a test fails.
  * If no output appears, all tests succeeded.
+ *
  * @author Dan Zilberstein
  */
 @SuppressWarnings("java:S109")
 public final class Main {
-    /** Default constructor to satisfy JavaDoc generator */
+    /**
+     * Default constructor to satisfy JavaDoc generator
+     */
     public Main() { /* to satisfy JavaDoc generator */ }
 
-    /** A point for tests at (1,2,3) */
-    private static final Point  P1          = new Point(1, 2, 3);
-    /** A point for tests at (2,4,6) */
-    private static final Point  P2          = new Point(2, 4, 6);
-    /** A point for tests at (2,4,5) */
-    private static final Point  P3          = new Point(2, 4, 5);
+    /**
+     * A point for tests at (1,2,3)
+     */
+    private static final Point P1 = new Point(1, 2, 3);
+    /**
+     * A point for tests at (2,4,6)
+     */
+    private static final Point P2 = new Point(2, 4, 6);
+    /**
+     * A point for tests at (2,4,5)
+     */
+    private static final Point P3 = new Point(2, 4, 5);
 
-    /** A vector for tests to (1,2,3) */
-    private static final Vector V1          = new Vector(1, 2, 3);
-    /** A vector for tests to (-1,-2,-3) (opposite to V1) */
+    /**
+     * A vector for tests to (1,2,3)
+     */
+    private static final Vector V1 = new Vector(1, 2, 3);
+    /**
+     * A vector for tests to (-1,-2,-3) (opposite to V1)
+     */
     private static final Vector V1_OPPOSITE = new Vector(-1, -2, -3);
-    /** A vector for tests to (-2,-4,-6) */
-    private static final Vector V2          = new Vector(-2, -4, -6);
-    /** A vector for tests to (0,3,-2) */
-    private static final Vector V3          = new Vector(0, 3, -2);
-    /** A vector for tests to (1,2,2) */
-    private static final Vector V4          = new Vector(1, 2, 2);
-    /** A vector for tests to (3,6,9) */
-    private static final Vector V5          = new Vector(3, 6, 9);
+    /**
+     * A vector for tests to (-2,-4,-6)
+     */
+    private static final Vector V2 = new Vector(-2, -4, -6);
+    /**
+     * A vector for tests to (0,3,-2)
+     */
+    private static final Vector V3 = new Vector(0, 3, -2);
+    /**
+     * A vector for tests to (1,2,2)
+     */
+    private static final Vector V4 = new Vector(1, 2, 2);
+    /**
+     * A vector for tests to (3,6,9)
+     */
+    private static final Vector V5 = new Vector(3, 6, 9);
 
     /**
      * Entry point of the project's basic sanity tests.

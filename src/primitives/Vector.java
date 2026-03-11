@@ -6,7 +6,9 @@ package primitives;
  */
 public final class Vector extends Point {
 
-    /** Constant for the Z-axis unit vector */
+    /**
+     * Constant for the Z-axis unit vector
+     */
     public static final Vector AXIS_Z = new Vector(0, 0, 1);
 
     /**

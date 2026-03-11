@@ -9,10 +9,14 @@ import primitives.Vector;
  */
 public final class Plane extends Geometry {
 
-    /** A point on the plane */
+    /**
+     * A point on the plane
+     */
     private final Point _q0;
 
-    /** The normal vector to the plane */
+    /**
+     * The normal vector to the plane
+     */
     private final Vector _normal;
 
     /**
@@ -34,7 +38,7 @@ public final class Plane extends Geometry {
      * Constructor to initialize a plane from a point and a normal vector.
      * The normal vector is normalized before being saved.
      *
-     * @param q0 the point on the plane
+     * @param q0     the point on the plane
      * @param normal the normal vector
      */
     public Plane(Point q0, Vector normal) {

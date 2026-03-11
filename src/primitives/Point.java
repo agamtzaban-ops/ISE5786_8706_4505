@@ -7,10 +7,14 @@ import java.util.Objects;
  */
 public class Point {
 
-    /** The 3D coordinates of the point */
+    /**
+     * The 3D coordinates of the point
+     */
     protected final Double3 _xyz;
 
-    /** Constant representing the origin point (0,0,0) */
+    /**
+     * Constant representing the origin point (0,0,0)
+     */
     public static final Point ZERO = new Point(Double3.ZERO);
 
     /**

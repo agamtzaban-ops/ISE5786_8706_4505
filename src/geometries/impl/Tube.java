@@ -9,13 +9,15 @@ import primitives.Vector;
  */
 public class Tube extends RadialGeometry {
 
-    /** The axis ray of the tube */
+    /**
+     * The axis ray of the tube
+     */
     protected final Ray _axisRay;
 
     /**
      * Constructor to initialize a tube with a radius and an axis ray.
      *
-     * @param radius the radius of the tube
+     * @param radius  the radius of the tube
      * @param axisRay the axis ray of the tube
      */
     public Tube(double radius, Ray axisRay) {
