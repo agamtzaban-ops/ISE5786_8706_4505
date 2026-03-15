@@ -7,21 +7,17 @@ import java.util.Objects;
  */
 public final class Ray {
 
-    /**
-     * The starting point of the ray
-     */
+    /** The starting point of the ray */
     private final Point _origin;
 
-    /**
-     * The normalized direction vector of the ray
-     */
+    /** The normalized direction vector of the ray */
     private final Vector _direction;
 
     /**
      * Constructor for Ray.
      * The direction vector is normalized before it is saved.
      *
-     * @param origin    the starting point
+     * @param origin the starting point
      * @param direction the direction vector
      */
     public Ray(Point origin, Vector direction) {
@@ -30,8 +26,16 @@ public final class Ray {
     }
 
     /**
+     * Gets the starting point of the ray.
+     *
+     * @return the origin point
+     */
+    public Point origin() {
+        return _origin;
+    }
+
+    /**
      * Gets the normalized direction vector of the ray.
-     * This method is provided specifically for testing purposes.
      *
      * @return the normalized direction vector
      */

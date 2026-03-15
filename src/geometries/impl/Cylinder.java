@@ -9,26 +9,23 @@ import primitives.Vector;
  */
 public final class Cylinder extends Tube {
 
-    /**
-     * The height of the cylinder
-     */
+    /** The height of the cylinder */
     private final double _height;
 
     /**
      * Constructor to initialize a cylinder with a radius, an axis ray, and a height.
      *
-     * @param radius  the radius of the cylinder
-     * @param axisRay the axis ray of the cylinder
-     * @param height  the height of the cylinder
+     * @param radius the radius of the cylinder
+     * @param axis the axis ray of the cylinder
+     * @param height the height of the cylinder
      */
-    public Cylinder(double radius, Ray axisRay, double height) {
-        super(radius, axisRay);
+    public Cylinder(double radius, Ray axis, double height) {
+        super(radius, axis);
         _height = height;
     }
 
     @Override
     public Vector getNormal(Point point) {
-        // According to stage 1 requirements, this method returns null
         return null;
     }
 }

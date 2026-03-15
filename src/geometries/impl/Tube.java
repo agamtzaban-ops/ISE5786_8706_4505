@@ -9,25 +9,22 @@ import primitives.Vector;
  */
 public class Tube extends RadialGeometry {
 
-    /**
-     * The axis ray of the tube
-     */
-    protected final Ray _axisRay;
+    /** The axis ray of the tube */
+    protected final Ray _axis;
 
     /**
      * Constructor to initialize a tube with a radius and an axis ray.
      *
-     * @param radius  the radius of the tube
-     * @param axisRay the axis ray of the tube
+     * @param radius the radius of the tube
+     * @param axis the axis ray of the tube
      */
-    public Tube(double radius, Ray axisRay) {
+    public Tube(double radius, Ray axis) {
         super(radius);
-        _axisRay = axisRay;
+        _axis = axis;
     }
 
     @Override
     public Vector getNormal(Point point) {
-        // According to stage 1 requirements, this method returns null
         return null;
     }
 }
