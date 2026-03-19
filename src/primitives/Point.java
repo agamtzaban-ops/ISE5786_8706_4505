@@ -93,6 +93,6 @@ public class Point {
 
     @Override
     public String toString() {
-        return "Point " + _xyz;
+        return "" + _xyz;
     }
 }

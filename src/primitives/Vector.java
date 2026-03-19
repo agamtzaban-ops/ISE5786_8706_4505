@@ -10,7 +10,11 @@ public final class Vector extends Point {
      * Constant for the Z-axis unit vector
      */
     public static final Vector AXIS_Z = new Vector(0, 0, 1);
+    /** Constant for the X-axis unit vector */
+    public static final Vector AXIS_X = new Vector(1, 0, 0);
 
+    /** Constant for the Y-axis unit vector */
+    public static final Vector AXIS_Y = new Vector(0, 1, 0);
     /**
      * Constructor to initialize Vector with three double coordinates.
      * Throws an exception if the zero vector is created.
@@ -125,6 +129,6 @@ public final class Vector extends Point {
 
     @Override
     public String toString() {
-        return "Vector " + _xyz;
+        return  ""  + super._xyz;
     }
 }
