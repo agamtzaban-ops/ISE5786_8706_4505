@@ -2,6 +2,7 @@ package geometries.impl;
 
 import geometries.api.Geometry;
 import primitives.Point;
+import primitives.Ray;
 import primitives.Vector;
 
 import java.util.List;
@@ -86,5 +87,53 @@ public class Polygon extends Geometry {
     @Override
     public Vector getNormal(Point point) {
         return _plane.getNormal(point);
+    }
+
+    /**
+     * Finds all intersection points between the ray and the polygon.
+     * The algorithm first checks for intersections with the polygon's plane.
+     * If an intersection exists, it checks if the point is strictly inside the polygon's boundaries.
+     *
+     * @param ray the ray intersecting the polygon
+     * @return a list containing the intersection point if it exists, or null otherwise
+     */
+    @Override
+    public List<Point> findIntersections(Ray ray) {
+        // 1. Intersect with the plane first
+        List<Point> planeIntersections = _plane.findIntersections(ray);
+        if (planeIntersections == null) {
+            return null;
+        }
+
+        Point p0 = ray.origin();
+        Vector v = ray.direction();
+        int size = _vertices.size();
+        boolean isPositive = false;
+
+        // 2. Check if the point is inside the polygon
+        for (int i = 0; i < size; i++) {
+            Point p1 = _vertices.get(i);
+            Point p2 = _vertices.get((i + 1) % size);
+
+            Vector v1 = p1.subtract(p0);
+            Vector v2 = p2.subtract(p0);
+            Vector n = v1.crossProduct(v2).normalize();
+            double vn = primitives.Util.alignZero(v.dotProduct(n));
+
+            // Points on the edge or vertex are not considered intersections
+            if (primitives.Util.isZero(vn)) {
+                return null;
+            }
+
+            if (i == 0) {
+                isPositive = vn > 0;
+            } else if ((vn > 0) != isPositive) {
+                // Sign changed, the point is outside the polygon
+                return null;
+            }
+        }
+
+        // Return the list created by the plane (avoiding unnecessary memory allocation)
+        return planeIntersections;
     }
 }

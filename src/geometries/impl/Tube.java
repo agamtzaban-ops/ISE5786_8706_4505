@@ -4,6 +4,8 @@ import primitives.Point;
 import primitives.Ray;
 import primitives.Vector;
 
+import java.util.List;
+
 /**
  * Class Tube represents an infinite cylinder-like tube in 3D space.
  */
@@ -44,5 +46,9 @@ public class Tube extends RadialGeometry {
 
         // The normal is the normalized vector from O to the given point
         return point.subtract(o).normalize();
+    }
+    @Override
+    public List<Point> findIntersections(Ray ray) {
+        return null;
     }
 }
