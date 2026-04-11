@@ -19,4 +19,17 @@ class RayTests {
         assertEquals(1d, ray.direction().length(), 0.000001,
                 "ERROR: Ray constructor does not normalize the direction vector");
     }
+    @Test
+    void testGetPoint() {
+        Ray ray = new Ray(new Point(1, 0, 0), new Vector(1, 0, 0));
+
+        // EP01: t > 0
+        assertEquals(new Point(3, 0, 0), ray.getPoint(2), "getPoint error for t > 0");
+
+        // EP02: t < 0
+        assertEquals(new Point(0, 0, 0), ray.getPoint(-1), "getPoint error for t < 0");
+
+        // BV01: t = 0
+        assertEquals(new Point(1, 0, 0), ray.getPoint(0), "getPoint error for t = 0");
+    }
 }

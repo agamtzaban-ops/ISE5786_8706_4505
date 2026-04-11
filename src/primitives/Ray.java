@@ -43,10 +43,28 @@ public final class Ray {
         return _direction;
     }
 
+    /**
+     * Calculates a point on the ray's line at a given distance t from the head.
+     * * @param t distance from ray origin
+     * @return the calculated Point (P = P0 + t * v)
+     */
+    public Point getPoint(double t) {
+        try {
+            // Formula: P = P0 + t * v
+            return _origin.add(_direction.scale(t));
+        } catch (IllegalArgumentException e) {
+            // If t is zero, scaling the vector fails (zero vector).
+            // In this case, the point is simply the origin of the ray.
+            return _origin;
+        }
+    }
+
     @Override
     public boolean equals(Object obj) {
         if (this == obj) return true;
-        return (obj instanceof Ray other) && _origin.equals(other._origin) && _direction.equals(other._direction);
+        return (obj instanceof Ray other) &&
+                _origin.equals(other._origin) &&
+                _direction.equals(other._direction);
     }
 
     @Override
@@ -56,7 +74,6 @@ public final class Ray {
 
     @Override
     public String toString() {
-        return _origin + "" + _direction;
-
+        return "Origin: " + _origin + ", Direction: " + _direction;
     }
 }
