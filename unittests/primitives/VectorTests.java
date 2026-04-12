@@ -72,11 +72,13 @@ class VectorTests {
     void testDotProduct() {
         // ============ Equivalence Partitions Tests ==============
         // EP01: Simple dot product
-        assertEquals(-28d, v1.dotProduct(v2), DELTA, "ERROR: dotProduct() wrong result");
+        assertEquals(-28d, v1.dotProduct(v2), DELTA,
+                "ERROR: dotProduct() wrong result");
 
         // =============== Boundary Values Tests ==================
         // BV01: Dot product of orthogonal vectors
-        assertEquals(0d, v1.dotProduct(v3), DELTA, "ERROR: dotProduct() for orthogonal vectors is not zero");
+        assertEquals(0d, v1.dotProduct(v3), DELTA,
+                "ERROR: dotProduct() for orthogonal vectors is not zero");
     }
 
     /**
@@ -88,10 +90,13 @@ class VectorTests {
         // EP01: Cross product of two vectors
         Vector vr = v1.crossProduct(v3);
         // Test that length of cross-product is proper (orthogonal vectors taken for simplicity)
-        assertEquals(v1.length() * v3.length(), vr.length(), DELTA, "ERROR: crossProduct() wrong result length");
+        assertEquals(v1.length() * v3.length(), vr.length(), DELTA,
+                "ERROR: crossProduct() wrong result length");
         // Test cross-product result orthogonality to its operands
-        assertEquals(0, vr.dotProduct(v1), DELTA, "ERROR: crossProduct() result is not orthogonal to 1st operand");
-        assertEquals(0, vr.dotProduct(v3), DELTA, "ERROR: crossProduct() result is not orthogonal to 2nd operand");
+        assertEquals(0, vr.dotProduct(v1), DELTA,
+                "ERROR: crossProduct() result is not orthogonal to 1st operand");
+        assertEquals(0, vr.dotProduct(v3), DELTA,
+                "ERROR: crossProduct() result is not orthogonal to 2nd operand");
 
         // =============== Boundary Values Tests ==================
         // BV01: Cross product of parallel vectors
@@ -106,7 +111,8 @@ class VectorTests {
     void testLengthSquared() {
         // ============ Equivalence Partitions Tests ==============
         // EP01: Simple length squared
-        assertEquals(14d, v1.lengthSquared(), DELTA, "ERROR: lengthSquared() wrong result");
+        assertEquals(14d, v1.lengthSquared(), DELTA,
+                "ERROR: lengthSquared() wrong result");
     }
 
     /**
@@ -116,7 +122,8 @@ class VectorTests {
     void testLength() {
         // ============ Equivalence Partitions Tests ==============
         // EP01: Simple length
-        assertEquals(5d, new Vector(0, 3, 4).length(), DELTA, "ERROR: length() wrong result");
+        assertEquals(5d, new Vector(0, 3, 4).length(), DELTA,
+                "ERROR: length() wrong result");
     }
 
     /**
@@ -137,6 +144,7 @@ class VectorTests {
                 "ERROR: normalized vector is not parallel to the original one");
 
         // Ensure the normalized vector is in the same direction
-        assertTrue(v.dotProduct(n) > 0, "ERROR: normalized vector is in the opposite direction");
+        assertTrue(v.dotProduct(n) > 0,
+                "ERROR: normalized vector is in the opposite direction");
     }
 }
