@@ -16,4 +16,4 @@ public abstract class Intersectable {
      * @return a list of intersection points, or null if there are no intersections
      */
     public abstract List<Point> findIntersections(Ray ray);
-}
+    }

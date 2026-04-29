@@ -1,16 +1,14 @@
 package renderer;
 
-import primitives.Point;
-import primitives.Ray;
-import primitives.Vector;
+import primitives.*;
+import scene.Scene;
 import java.util.MissingResourceException;
 
 /**
  * Camera class representing the view point of the scene.
- * Implements the Builder design pattern.
+ * Implemented according to Stage 5 instructions with Builder pattern.
  */
 public class Camera implements Cloneable {
-
     // Camera location and directions
     private Point _p0;
     private Vector _vTo;
@@ -22,7 +20,7 @@ public class Camera implements Cloneable {
     private double _height;
     private double _distance;
 
-    // View plane resolution (default is 1x1)
+    // View plane resolution
     private int _nX = 1;
     private int _nY = 1;
 
@@ -31,267 +29,236 @@ public class Camera implements Cloneable {
     private double _pixelWidth;
     private double _pixelHeight;
 
-    /** Private default constructor */
+    // Rendering infrastructure fields
+    private ImageWriter _imageWriter;
+    private RayTracerBase _rayTracer;
+    private String _imageName = "default";
+
+    /** Private default constructor for Builder */
     private Camera() {}
 
     /**
-     * Gets a new Builder object to construct a Camera.
-     * @return a new Builder instance
+     * Static factory method for Builder
+     * @return a new Builder object
      */
     public static Builder getBuilder() {
         return new Builder();
     }
 
+    // --- Rendering Operations ---
+
     /**
-     * Constructs a ray through a specific pixel on the view plane.
-     *
-     * @param j column index of the pixel (xIndex)
-     * @param i row index of the pixel (yIndex)
-     * @return Ray starting from camera location through the pixel
+     * Renders the image by iterating over all pixels.
+     * @return the camera itself
+     */
+    public Camera renderImage() {
+        for (int i = 0; i < _nY; i++) {
+            for (int j = 0; j < _nX; j++) {
+                castRay(j, i);
+            }
+        }
+        return this;
+    }
+
+    /**
+     * Helper method to cast a ray and write the pixel color.
+     * @param j column index
+     * @param i row index
+     */
+    private void castRay(int j, int i) {
+        Ray ray = constructRay(j, i);
+        Color pixelColor = _rayTracer.traceRay(ray);
+        _imageWriter.writePixel(j, i, pixelColor);
+    }
+
+    /**
+     * Prints a grid onto the image.
+     * @param interval gap between grid lines
+     * @param color grid line color
+     * @return the camera itself
+     */
+    public Camera printGrid(int interval, Color color) {
+        for (int i = 0; i < _nY; i++) {
+            for (int j = 0; j < _nX; j++) {
+                if (i % interval == 0 || j % interval == 0) {
+                    _imageWriter.writePixel(j, i, color);
+                }
+            }
+        }
+        return this;
+    }
+
+    /**
+     * Writes the image to a file using the internal image name.
+     */
+    public void writeToImage() {
+        if (_imageWriter == null)
+            throw new MissingResourceException("Missing ImageWriter", "Camera", "imageWriter");
+        _imageWriter.writeToImage(_imageName);
+    }
+
+    /**
+     * Writes the image to a file with a specific name (To support legacy tests).
+     * @param fileName the name of the file
+     */
+    public void writeToImage(String fileName) {
+        if (_imageWriter == null)
+            throw new MissingResourceException("Missing ImageWriter", "Camera", "imageWriter");
+        _imageWriter.writeToImage(fileName);
+    }
+
+    /**
+     * Constructs a ray through the center of a given pixel.
+     * @param j column index
+     * @param i row index
+     * @return the ray from camera through pixel (j,i)
      */
     public Ray constructRay(int j, int i) {
-        // Start at the center of the view plane
         Point pIJ = _vpCenter;
-
-        // Calculate the movement from the center in pixel units
-        // j is the x-axis index, i is the y-axis index
         double xJ = (j - (_nX - 1) / 2d) * _pixelWidth;
         double yI = -(i - (_nY - 1) / 2d) * _pixelHeight;
 
-        // Move the point horizontally along vRight axis
-        if (!primitives.Util.isZero(xJ)) {
-            pIJ = pIJ.add(_vRight.scale(xJ));
-        }
+        if (!Util.isZero(xJ)) pIJ = pIJ.add(_vRight.scale(xJ));
+        if (!Util.isZero(yI)) pIJ = pIJ.add(_vUp.scale(yI));
 
-        // Move the point vertically along vUp axis
-        if (!primitives.Util.isZero(yI)) {
-            pIJ = pIJ.add(_vUp.scale(yI));
-        }
-
-        // The vector from the camera location to the pixel center
-        Vector vIJ = pIJ.subtract(_p0);
-
-        return new Ray(_p0, vIJ);
+        return new Ray(_p0, pIJ.subtract(_p0));
     }
 
     @Override
-    protected Object clone() throws CloneNotSupportedException {
+    public Object clone() throws CloneNotSupportedException {
         return super.clone();
     }
 
-    /**
-     * Inner Builder class for constructing the Camera.
-     */
+    // --- Inner Builder Class ---
+
     public static class Builder {
-        // The camera instance being built
         private final Camera _camera = new Camera();
-
-        // Temporary fields for direction calculation
-        private Vector _to;
-        private Vector _up;
+        private Vector _to, _up;
         private Point _target;
-
-        // Rotation angle in degrees (clockwise)
         private double _rotationAngle = 0;
 
-        /**
-         * Sets the camera location.
-         * @param location the location point
-         * @return this Builder
-         */
         public Builder setLocation(Point location) {
             _camera._p0 = location;
             return this;
         }
 
-        /**
-         * Sets the camera direction using two vectors.
-         * @param to forward direction
-         * @param up general up direction
-         * @return this Builder
-         */
         public Builder setDirection(Vector to, Vector up) {
             this._to = to;
             this._up = up;
             return this;
         }
 
-        /**
-         * Sets the camera direction using a target point and up vector.
-         * @param target point to look at
-         * @param up general up direction
-         * @return this Builder
-         */
         public Builder setDirection(Point target, Vector up) {
             this._target = target;
             this._up = up;
             return this;
         }
 
-        /**
-         * Sets the camera direction using a target point, defaulting up to Y-axis.
-         * @param target point to look at
-         * @return this Builder
-         */
         public Builder setDirection(Point target) {
             this._target = target;
             this._up = new Vector(0, 1, 0);
             return this;
         }
 
-        /**
-         * Sets the physical size of the view plane.
-         * @param width physical width
-         * @param height physical height
-         * @return this Builder
-         */
         public Builder setVpSize(double width, double height) {
             _camera._width = width;
             _camera._height = height;
             return this;
         }
 
-        /**
-         * Sets the distance from the camera to the view plane.
-         * @param distance physical distance
-         * @return this Builder
-         */
         public Builder setVpDistance(double distance) {
             _camera._distance = distance;
             return this;
         }
 
-        /**
-         * Sets the resolution of the view plane (number of pixels).
-         * @param nX number of pixels in width
-         * @param nY number of pixels in height
-         * @return this Builder
-         */
         public Builder setResolution(int nX, int nY) {
             _camera._nX = nX;
             _camera._nY = nY;
             return this;
         }
 
-        /**
-         * Rotates the camera around its viewing direction (vTo).
-         * @param angle rotation angle in degrees clockwise
-         * @return this Builder
-         */
+        public Builder setImageName(String name) {
+            _camera._imageName = name;
+            return this;
+        }
+
         public Builder rotate(double angle) {
             this._rotationAngle = angle;
             return this;
         }
 
-        /**
-         * Verifies that the resolution parameters are strictly positive.
-         */
-        private void checkResolution() {
-            if (_camera._nX <= 0 || _camera._nY <= 0) {
-                throw new IllegalArgumentException("Resolution dimensions must be strictly positive");
-            }
+        public Builder setRayTracer(Scene scene, RayTracerBase rayTracer) {
+            _camera._rayTracer = rayTracer;
+            return this;
         }
 
-        /**
-         * Verifies location and direction data.
-         * Calculates missing vectors, applies rotation, and ensures perfect orthogonality.
-         */
-        private void checkLocationAndDirection() {
-            String className = "Camera";
-            if (_camera._p0 == null) {
-                throw new MissingResourceException("Missing camera location", className, "Location");
+        public Builder setRayTracer(Scene scene, RayTracerType type) {
+            if (type == RayTracerType.SIMPLE) {
+                _camera._rayTracer = new SimpleRayTracer(scene);
+            } else {
+                throw new IllegalArgumentException("Unknown RayTracerType");
             }
-            if (_up == null) {
-                throw new MissingResourceException("Missing general up vector", className, "Up");
-            }
-            if (_to == null && _target == null) {
-                throw new MissingResourceException("Missing target or direction", className, "Direction");
+            return this;
+        }
+
+        public Camera build() {
+            // Stage 5 RayTracer check
+            if (_camera._rayTracer == null) {
+                setRayTracer(new Scene("test"), RayTracerType.SIMPLE);
             }
 
-            // Calculate _vTo if missing, and normalize it
-            if (_to == null) {
+            // Resolution and ImageWriter
+            if (_camera._nX <= 0 || _camera._nY <= 0)
+                throw new IllegalArgumentException("Resolution must be positive");
+            _camera._imageWriter = new ImageWriter(_camera._nX, _camera._nY);
+
+            // Orientation setup
+            if (_camera._p0 == null || _up == null)
+                throw new MissingResourceException("Missing camera params", "Camera", "build");
+
+            if (_to != null) {
+                _camera._vTo = _to.normalize();
+            } else if (_target != null) {
                 _camera._vTo = _target.subtract(_camera._p0).normalize();
             } else {
-                _camera._vTo = _to.normalize();
+                throw new MissingResourceException("Missing direction", "Camera", "Direction");
             }
 
-            // Calculate _vRight = _vTo x _up
-            try {
-                _camera._vRight = _camera._vTo.crossProduct(_up).normalize();
-            } catch (IllegalArgumentException e) {
-                throw new IllegalArgumentException("Direction and Up vectors cannot be parallel");
-            }
-
-            // Calculate actual _vUp = _vRight x _vTo (ensures exact orthogonality)
+            _camera._vRight = _camera._vTo.crossProduct(_up).normalize();
             _camera._vUp = _camera._vRight.crossProduct(_camera._vTo).normalize();
 
-            // Apply camera rotation around vTo if needed (Bonus)
-            if (!primitives.Util.isZero(_rotationAngle)) {
+            // Bonus: Camera rotation around vTo with safety checks for Zero Vector
+            if (!Util.isZero(_rotationAngle)) {
                 double rad = Math.toRadians(_rotationAngle);
-                double cos = primitives.Util.alignZero(Math.cos(rad));
-                double sin = primitives.Util.alignZero(Math.sin(rad));
+                double cos = Util.alignZero(Math.cos(rad));
+                double sin = Util.alignZero(Math.sin(rad));
+                Vector vUpOrig = _camera._vUp;
+                Vector vRightOrig = _camera._vRight;
 
-                Vector origUp = _camera._vUp;
-                Vector origRight = _camera._vRight;
-
-                // Rotate vUp: origUp * cos + origRight * sin (Clockwise)
-                Vector vUpCos = primitives.Util.isZero(cos) ? null : origUp.scale(cos);
-                Vector vUpSin = primitives.Util.isZero(sin) ? null : origRight.scale(sin);
-
-                if (vUpCos != null && vUpSin != null) {
-                    _camera._vUp = vUpCos.add(vUpSin).normalize();
-                } else if (vUpCos != null) {
-                    _camera._vUp = vUpCos.normalize();
-                } else if (vUpSin != null) {
-                    _camera._vUp = vUpSin.normalize();
-                }
-
-                // Rotate vRight: origRight * cos - origUp * sin (Clockwise)
-                Vector vRightCos = primitives.Util.isZero(cos) ? null : origRight.scale(cos);
-                Vector vRightSin = primitives.Util.isZero(sin) ? null : origUp.scale(sin);
-
-                if (vRightCos != null && vRightSin != null) {
-                    _camera._vRight = vRightCos.subtract(vRightSin).normalize();
-                } else if (vRightCos != null) {
-                    _camera._vRight = vRightCos.normalize();
-                } else if (vRightSin != null) {
-                    _camera._vRight = vRightSin.scale(-1).normalize();
+                if (Util.isZero(sin)) { // Rotation by 0 or 180 degrees
+                    _camera._vUp = vUpOrig.scale(cos);
+                    _camera._vRight = vRightOrig.scale(cos);
+                } else if (Util.isZero(cos)) { // Rotation by 90 or 270 degrees
+                    _camera._vUp = vRightOrig.scale(sin);
+                    _camera._vRight = vUpOrig.scale(-sin);
+                } else { // Combined rotation
+                    _camera._vUp = vUpOrig.scale(cos).add(vRightOrig.scale(sin)).normalize();
+                    _camera._vRight = vRightOrig.scale(cos).subtract(vUpOrig.scale(sin)).normalize();
                 }
             }
-        }
 
-        /**
-         * Verifies view plane parameters and calculates helper fields.
-         */
-        private void checkViewPlane() {
-            if (_camera._width <= 0 || _camera._height <= 0) {
-                throw new IllegalArgumentException("View plane size must be strictly positive");
-            }
-            if (_camera._distance <= 0) {
-                throw new IllegalArgumentException("View plane distance must be strictly positive");
-            }
+            // View Plane dimensions
+            if (_camera._width <= 0 || _camera._height <= 0 || _camera._distance <= 0)
+                throw new IllegalArgumentException("VP dimensions must be positive");
 
-            // Calculate View Plane Center (Pc = P0 + d * Vto)
             _camera._vpCenter = _camera._p0.add(_camera._vTo.scale(_camera._distance));
-
-            // Calculate pixel dimensions
             _camera._pixelWidth = _camera._width / _camera._nX;
             _camera._pixelHeight = _camera._height / _camera._nY;
-        }
 
-        /**
-         * Final build stage: validates data, calculates missing fields,
-         * and returns a cloned Camera object.
-         * @return a ready-to-use Camera instance
-         */
-        public Camera build() {
-            checkResolution();
-            checkLocationAndDirection();
-            checkViewPlane();
             try {
                 return (Camera) _camera.clone();
             } catch (CloneNotSupportedException e) {
-                return null;
+                throw new RuntimeException("Build failed", e);
             }
         }
     }

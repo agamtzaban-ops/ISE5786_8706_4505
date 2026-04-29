@@ -1,5 +1,5 @@
 package primitives;
-
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -75,5 +75,31 @@ public final class Ray {
     @Override
     public String toString() {
         return "Origin: " + _origin + ", Direction: " + _direction;
+    }
+
+    /**
+     * Finds the closest point to the ray origin from a list of points.
+     * @param points list of intersection points, can be null
+     * @return the closest point to the ray head, or null if the list is null
+     */
+    public Point findClosestPoint(List<Point> points) {
+        if (points == null) {
+            return null;
+        }
+
+        Point closest = null;
+        // Using Double.POSITIVE_INFINITY to avoid double access to the first element
+        double minDistance = Double.POSITIVE_INFINITY;
+
+        for (Point p : points) {
+            // Efficiency: Using squared distance instead of regular distance (avoids sqrt)
+            double distanceSquared = _origin.distanceSquared(p);
+
+            if (distanceSquared < minDistance) {
+                minDistance = distanceSquared;
+                closest = p;
+            }
+        }
+        return closest;
     }
 }
