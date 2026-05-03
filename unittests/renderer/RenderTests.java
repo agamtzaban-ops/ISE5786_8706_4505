@@ -123,40 +123,29 @@ class RenderTests {
     }
     @Test
     public void testBasicRenderXml() {
-        // 1. Load the scene from the XML file
-        Scene scene = SceneLoader.loadSceneFromXML("basicRenderTestTwoColors.xml", "XML Test Scene");
-
-        // 2. Configure the camera and execute the rendering process
-        renderer.Camera.getBuilder()
-                .setLocation(primitives.Point.ZERO)
-                .setDirection(new primitives.Vector(0, 0, -1), new primitives.Vector(0, 1, 0))
-                .setVpDistance(100)
-                .setVpSize(500, 500)
-                .setRayTracer(scene, renderer.RayTracerType.SIMPLE)
-                .setImageName("XML_Render_Output")
-                .build()
-                .renderImage()
-                .writeToImage();
+        renderSceneXML(baseCameraBuilder(), "basicRenderTestTwoColors.xml") //
+                .printGrid(100, new Color(YELLOW)) //
+                .writeToImage("XML_Render_Output");
     }
+
+
+
     /**
      * Renders a scene loaded from an XML file.
-     * <p>
-     * Note: parsing logic should not be implemented inside tests.
-     * @param  builder the camera builder to use
+     * * @param  builder the camera builder to use
      * @param  xmlName the XML scene file name
      * @return         the camera after rendering
      */
     Camera renderSceneXML(Camera.Builder builder, String xmlName) {
-        Scene scene = new Scene("Using XML");
-        // Parse from XML file into scene object instead of the new Scene above,
-        // Use the code you added in appropriate packages.
-        // ...
-        // NB: unit tests is not the correct place to put XML parsing code.
+        // Load the scene from the XML file using your SceneLoader implementation
+        // This keeps the parsing logic outside the test class as required.
+        Scene scene = SceneLoader.loadSceneFromXML(xmlName, "XML Test Scene");
 
-        return builder //
-                .setRayTracer(scene, RayTracerType.SIMPLE) //
-                .build() //
-                .renderImage(); //
+        // Build the camera with the loaded scene and render the image
+        return builder
+                .setRayTracer(scene, RayTracerType.SIMPLE)
+                .build()
+                .renderImage();
     }
 
     /**
