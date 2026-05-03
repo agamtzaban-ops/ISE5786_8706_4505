@@ -136,6 +136,7 @@ class RenderTests {
      * @param  xmlName the XML scene file name
      * @return         the camera after rendering
      */
+
     Camera renderSceneXML(Camera.Builder builder, String xmlName) {
         // Load the scene from the XML file using your SceneLoader implementation
         // This keeps the parsing logic outside the test class as required.
