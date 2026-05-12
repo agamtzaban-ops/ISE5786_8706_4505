@@ -1,6 +1,6 @@
 package geometries.impl;
 
-import geometries.api.Intersectable;
+import geometries.api.Intersectable.Intersection;
 import primitives.Point;
 import primitives.Ray;
 import primitives.Vector;
@@ -17,6 +17,7 @@ public final class Sphere extends RadialGeometry {
 
     /**
      * Constructor to initialize a sphere with a center point and a radius.
+     *
      * @param center the center point of the sphere
      * @param radius the radius of the sphere
      */
@@ -31,7 +32,7 @@ public final class Sphere extends RadialGeometry {
     }
 
     @Override
-    public List<Point> findIntersections(Ray ray) {
+    protected List<Intersection> calcIntersectionsHelper(Ray ray) {
         Point p0 = ray.origin();
         Vector v = ray.direction();
 
@@ -41,7 +42,7 @@ public final class Sphere extends RadialGeometry {
             u = _center.subtract(p0);
         } catch (IllegalArgumentException e) {
             // Ray starts at the center of the sphere, so it hits the surface at t = radius
-            return List.of(ray.getPoint(_radius));
+            return List.of(new Intersection(this, ray.getPoint(_radius)));
         }
 
         double tm = v.dotProduct(u);
@@ -59,13 +60,16 @@ public final class Sphere extends RadialGeometry {
 
         // Only return points that are in the ray's direction (t > 0)
         if (t1 > 0 && t2 > 0) {
-            return List.of(ray.getPoint(t1), ray.getPoint(t2));
+            return List.of(
+                    new Intersection(this, ray.getPoint(t1)),
+                    new Intersection(this, ray.getPoint(t2))
+            );
         }
         if (t1 > 0) {
-            return List.of(ray.getPoint(t1));
+            return List.of(new Intersection(this, ray.getPoint(t1)));
         }
         if (t2 > 0) {
-            return List.of(ray.getPoint(t2));
+            return List.of(new Intersection(this, ray.getPoint(t2)));
         }
 
         return null;

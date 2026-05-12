@@ -1,5 +1,6 @@
 package geometries.impl;
 
+import geometries.api.Intersectable.Intersection;
 import primitives.Point;
 import primitives.Ray;
 import primitives.Vector;
@@ -17,6 +18,8 @@ public class Tube extends RadialGeometry {
 
     /**
      * Constructor to initialize a tube with a radius and an axis ray.
+     * * @param radius the radius of the tube
+     * @param axis   the axis ray of the tube
      */
     public Tube(double radius, Ray axis) {
         super(radius);
@@ -25,7 +28,6 @@ public class Tube extends RadialGeometry {
 
     @Override
     public Vector getNormal(Point point) {
-        // ... (הקוד של ה-Normal שכתבת כבר, תשאירי אותו כמו שהוא)
         Point p0 = _axis.origin();
         Vector v = _axis.direction();
         Vector p0ToPoint = point.subtract(p0);
@@ -35,8 +37,14 @@ public class Tube extends RadialGeometry {
         return point.subtract(o).normalize();
     }
 
+    /**
+     * Helper method for calculating intersections using NVI pattern.
+     *
+     * @param ray the ray to check for intersections
+     * @return list of intersections, or null if none
+     */
     @Override
-    public List<Point> findIntersections(Ray ray) {
+    protected List<Intersection> calcIntersectionsHelper(Ray ray) {
         Vector v = ray.direction();
         Point p0 = ray.origin();
         Vector va = _axis.direction();
@@ -92,10 +100,15 @@ public class Tube extends RadialGeometry {
         double t1 = alignZero((-b - sqrtDisc) / (2 * a));
         double t2 = alignZero((-b + sqrtDisc) / (2 * a));
 
-        // Step 5: Return only positive intersections
-        if (t1 > 0 && t2 > 0) return List.of(ray.getPoint(t1), ray.getPoint(t2));
-        if (t1 > 0) return List.of(ray.getPoint(t1));
-        if (t2 > 0) return List.of(ray.getPoint(t2));
+        // Step 5: Return only positive intersections wrapped in Intersection objects
+        if (t1 > 0 && t2 > 0) {
+            return List.of(
+                    new Intersection(this, ray.getPoint(t1)),
+                    new Intersection(this, ray.getPoint(t2))
+            );
+        }
+        if (t1 > 0) return List.of(new Intersection(this, ray.getPoint(t1)));
+        if (t2 > 0) return List.of(new Intersection(this, ray.getPoint(t2)));
 
         return null;
     }

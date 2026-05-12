@@ -1,6 +1,7 @@
 package geometries.impl;
 
 import geometries.api.Geometry;
+import geometries.api.Intersectable.Intersection;
 import primitives.Point;
 import primitives.Ray;
 import primitives.Vector;
@@ -50,7 +51,7 @@ public class Polygon extends Geometry {
      *
      * @param vertices polygon vertices in edge order
      * @throws IllegalArgumentException if the vertices do not form a valid convex
-     *                                  polygon
+     * polygon
      */
     public Polygon(Point... vertices) {
         if (vertices.length < 3)
@@ -90,15 +91,15 @@ public class Polygon extends Geometry {
     }
 
     /**
-     * Finds all intersection points between the ray and the polygon.
+     * Helper method for calculating intersections using the NVI pattern.
      * The algorithm first checks for intersections with the polygon's plane.
      * If an intersection exists, it checks if the point is strictly inside the polygon's boundaries.
      *
      * @param ray the ray intersecting the polygon
-     * @return a list containing the intersection point if it exists, or null otherwise
+     * @return a list containing the intersection object if it exists, or null otherwise
      */
     @Override
-    public List<Point> findIntersections(Ray ray) {
+    protected List<Intersection> calcIntersectionsHelper(Ray ray) {
         // 1. Intersect with the plane first
         List<Point> planeIntersections = _plane.findIntersections(ray);
         if (planeIntersections == null) {
@@ -133,7 +134,7 @@ public class Polygon extends Geometry {
             }
         }
 
-        // Return the list created by the plane (avoiding unnecessary memory allocation)
-        return planeIntersections;
+        // Return the intersection point wrapped in an Intersection object linked to this Polygon
+        return List.of(new Intersection(this, planeIntersections.get(0)));
     }
 }
