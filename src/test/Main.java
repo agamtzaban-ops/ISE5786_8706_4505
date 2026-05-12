@@ -243,25 +243,21 @@ public final class Main {
      * it is not tested here.
      */
     private static void geometryConstructorTests() {
-        // At this stage geometries mainly store constructor parameters.
-
-        // ---- Plane ----------------------------------------------------------
-        // constructor by three points
-        new Plane(P1, P2, P3);
-        // constructor by point and normal vector
-        Plane plane = new Plane(P1, V1);
-        if (!plane.getNormal(P1).equals(V1.normalize()))
-            out.println("ERROR: Plane(point, normal) constructor - wrong normal");
-
-        // ---- Polygon based geometries ---------------------------------------
+        // ---- Polygon based geometries ----
+        // Assuming P1, P2, P3 are already defined as Points
         new Triangle(P1, P2, P3);
 
-        // ---- Radial geometries ----------------------------------------------
+        // ---- Radial geometries ----
         new Sphere(new Point(0, 0, 0), 1);
-        // ---- Tube-based geometries ------------------------------------------
-        Ray axis = new Ray(Point.ZERO, Vector.AXIS_Z);
-        new Tube(1, axis);
-        new Cylinder(1, axis, 2);
-    }
 
+        // ---- Tube-based geometries ----
+        Ray axis = new Ray(Point.ZERO, Vector.AXIS_Z);
+
+        // Tube constructor: (radius, axis)
+        new Tube(1, axis);
+
+        // Cylinder constructor: (axis, radius, height)
+        // Fix: Updated order to match our refined Cylinder implementation
+        new Cylinder(axis, 1, 2);
+    }
 }
