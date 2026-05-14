@@ -4,6 +4,8 @@ import primitives.*;
 import scene.Scene;
 import java.util.MissingResourceException;
 
+import static primitives.Util.isZero;
+
 /**
  * Camera class representing the view point of the scene.
  * Implemented according to Stage 5 instructions with Builder pattern.
@@ -118,8 +120,12 @@ public class Camera implements Cloneable {
         double xJ = (j - (_nX - 1) / 2d) * _pixelWidth;
         double yI = -(i - (_nY - 1) / 2d) * _pixelHeight;
 
-        if (!Util.isZero(xJ)) pIJ = pIJ.add(_vRight.scale(xJ));
-        if (!Util.isZero(yI)) pIJ = pIJ.add(_vUp.scale(yI));
+        if (!isZero(xJ)) {
+            pIJ = pIJ.add(_vRight.scale(xJ));
+        }
+        if (!isZero(yI)) {
+            pIJ = pIJ.add(_vUp.scale(yI));
+        }
 
         return new Ray(_p0, pIJ.subtract(_p0));
     }
@@ -228,17 +234,17 @@ public class Camera implements Cloneable {
             _camera._vUp = _camera._vRight.crossProduct(_camera._vTo).normalize();
 
             // Bonus: Camera rotation around vTo with safety checks for Zero Vector
-            if (!Util.isZero(_rotationAngle)) {
+            if (!isZero(_rotationAngle)) {
                 double rad = Math.toRadians(_rotationAngle);
                 double cos = Util.alignZero(Math.cos(rad));
                 double sin = Util.alignZero(Math.sin(rad));
                 Vector vUpOrig = _camera._vUp;
                 Vector vRightOrig = _camera._vRight;
 
-                if (Util.isZero(sin)) { // Rotation by 0 or 180 degrees
+                if (isZero(sin)) { // Rotation by 0 or 180 degrees
                     _camera._vUp = vUpOrig.scale(cos);
                     _camera._vRight = vRightOrig.scale(cos);
-                } else if (Util.isZero(cos)) { // Rotation by 90 or 270 degrees
+                } else if (isZero(cos)) { // Rotation by 90 or 270 degrees
                     _camera._vUp = vRightOrig.scale(sin);
                     _camera._vRight = vUpOrig.scale(-sin);
                 } else { // Combined rotation

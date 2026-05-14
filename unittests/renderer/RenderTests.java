@@ -1,5 +1,6 @@
 package renderer;
 
+import static java.awt.Color.RED;
 import static java.awt.Color.YELLOW;
 
 import java.util.Vector;
@@ -124,7 +125,7 @@ class RenderTests {
     @Test
     public void testBasicRenderXml() {
         renderSceneXML(baseCameraBuilder(), "basicRenderTestTwoColors.xml") //
-                .printGrid(100, new Color(YELLOW)) //
+                .printGrid(100, new Color(RED)) //
                 .writeToImage("XML_Render_Output");
     }
 
