@@ -1,4 +1,6 @@
 package primitives;
+
+import geometries.api.Intersectable.Intersection;
 import java.util.List;
 import java.util.Objects;
 
@@ -78,28 +80,45 @@ public final class Ray {
     }
 
     /**
-     * Finds the closest point to the ray origin from a list of points.
-     * @param points list of intersection points, can be null
-     * @return the closest point to the ray head, or null if the list is null
+     * Finds the closest intersection to the ray origin among a list of intersections.
+     *
+     * @param intersections list of intersections
+     * @return the closest intersection, or null if the list is empty or null
      */
-    public Point findClosestPoint(List<Point> points) {
-        if (points == null) {
+    public Intersection findClosestIntersection(List<Intersection> intersections) {
+        if (intersections == null || intersections.isEmpty()) {
             return null;
         }
 
-        Point closest = null;
-        // Using Double.POSITIVE_INFINITY to avoid double access to the first element
+        Intersection closest = null;
         double minDistance = Double.POSITIVE_INFINITY;
 
-        for (Point p : points) {
+        for (Intersection intersection : intersections) {
             // Efficiency: Using squared distance instead of regular distance (avoids sqrt)
-            double distanceSquared = _origin.distanceSquared(p);
+            double distanceSquared = _origin.distanceSquared(intersection.point);
 
             if (distanceSquared < minDistance) {
                 minDistance = distanceSquared;
-                closest = p;
+                closest = intersection;
             }
         }
+
         return closest;
+    }
+
+    /**
+     * Finds the closest point to the ray origin among a list of points.
+     * Backward compatibility method that utilizes findClosestIntersection.
+     *
+     * @param points list of points, can be null
+     * @return the closest point to the ray head, or null if the list is null
+     */
+    public Point findClosestPoint(List<Point> points) {
+        return points == null ? null
+                : findClosestIntersection(
+                points.stream()
+                        .map(point -> new Intersection(null, point))
+                        .toList()
+        ).point;
     }
 }

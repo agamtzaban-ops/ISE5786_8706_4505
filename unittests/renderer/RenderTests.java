@@ -1,9 +1,7 @@
 package renderer;
 
-import static java.awt.Color.RED;
 import static java.awt.Color.YELLOW;
 
-import java.util.Vector;
 import org.junit.jupiter.api.Test;
 
 import geometries.impl.Sphere;
@@ -11,11 +9,10 @@ import geometries.impl.Triangle;
 import lighting.AmbientLight;
 import primitives.Color;
 import primitives.Point;
+import primitives.Vector;
 import scene.Scene;
 import scene.SceneLoader;
-import primitives.*;
-import renderer.*;
-import scene.*;
+
 /**
  * End-to-end rendering tests.
  * <p>
@@ -52,33 +49,13 @@ class RenderTests {
      */
     static final int    RESOLUTION  = 1000;
 
-//    @Test
-//    public void testBasicRenderXml() {
-//        // We use the full path to primitives.Vector to avoid confusion with java.util.Vector
-//        renderer.Camera.Builder cameraBuilder = renderer.Camera.getBuilder()
-//                .setLocation(primitives.Point.ZERO)
-//                .setDirection(new primitives.Vector(0, 0, -1), new primitives.Vector(0, 1, 0))
-//                .setVpDistance(100)
-//                .setVpSize(500, 500);
-//
-//        // Load the scene using your SceneLoader
-//        Scene scene = SceneLoader.loadSceneFromXML("basicRenderTestTwoColors.xml", "XML Test Scene");
-//
-//        cameraBuilder
-//                .setRayTracer(scene, renderer.RayTracerType.SIMPLE)
-//                .setImageName("XML_Render_Output")
-//                .build()
-//                .renderImage()
-//                .writeToImage();
-//    }
-
     /**
      * Creates a base camera builder for the tests.
      * @return camera builder configured with the common test settings
      */
     private static Camera.Builder baseCameraBuilder() {
         return Camera.getBuilder() //
-                .setLocation(LOCATION).setDirection(LOOK_AT) //
+                .setLocation(LOCATION).setDirection(LOOK_AT, Vector.AXIS_Y) //
                 .setVpDistance(VP_DISTANCE).setVpSize(VP_SIZE, VP_SIZE) //
                 .setResolution(RESOLUTION, RESOLUTION);
     }
@@ -122,32 +99,23 @@ class RenderTests {
                 .printGrid(100, new Color(YELLOW)) //
                 .writeToImage("Two colors render test");
     }
-    @Test
-    public void testBasicRenderXml() {
-        renderSceneXML(baseCameraBuilder(), "basicRenderTestTwoColors.xml") //
-                .printGrid(100, new Color(RED)) //
-                .writeToImage("XML_Render_Output");
-    }
-
-
 
     /**
      * Renders a scene loaded from an XML file.
-     * * @param  builder the camera builder to use
+     * <p>
+     * Note: parsing logic should not be implemented inside tests.
+     * @param  builder the camera builder to use
      * @param  xmlName the XML scene file name
      * @return         the camera after rendering
      */
-
     Camera renderSceneXML(Camera.Builder builder, String xmlName) {
-        // Load the scene from the XML file using your SceneLoader implementation
-        // This keeps the parsing logic outside the test class as required.
-        Scene scene = SceneLoader.loadSceneFromXML(xmlName, "XML Test Scene");
+        // Complete: Load the scene from the XML file using SceneLoader
+        Scene scene = SceneLoader.loadSceneFromXML(xmlName + ".xml", "XML Scene");
 
-        // Build the camera with the loaded scene and render the image
-        return builder
-                .setRayTracer(scene, RayTracerType.SIMPLE)
-                .build()
-                .renderImage();
+        return builder //
+                .setRayTracer(scene, RayTracerType.SIMPLE) //
+                .build() //
+                .renderImage(); //
     }
 
     /**
@@ -159,11 +127,8 @@ class RenderTests {
      * @return          the camera after rendering
      */
     static Camera renderSceneJSON(Camera.Builder builder, String jsonName) {
-        Scene scene = new Scene("Using JSON");
-        // Parse from JSON file into scene object instead of the new Scene above,
-        // Use the code you added in appropriate packages.
-        // ...
-        // NB: unit tests is not the correct place to put JSON parsing code.
+        // Complete: Load the scene from the JSON file using SceneLoader
+        Scene scene = SceneLoader.loadSceneFromJSON(jsonName + ".json", "JSON Scene");
 
         return builder //
                 .setRayTracer(scene, RayTracerType.SIMPLE) //
@@ -171,14 +136,18 @@ class RenderTests {
                 .renderImage(); //
     }
 
-
-
-
+    /** Test for XML based scene - for bonus */
+    @Test
+    void testBasicRenderXml() {
+        renderSceneXML(baseCameraBuilder(), "xml/basicRenderTestTwoColors")
+                .printGrid(100, new Color(YELLOW))
+                .writeToImage("render test xml");
+    }
 
     /** Test for JSON based scene - for bonus */
     @Test
     void testBasicRenderJson() {
-        renderSceneJSON(baseCameraBuilder(), "basicRenderTestTwoColors.xml") //
+        renderSceneJSON(baseCameraBuilder(), "basicRenderTestTwoColors") //
                 .printGrid(100, new Color(YELLOW)) //
                 .writeToImage("render test json");
     }

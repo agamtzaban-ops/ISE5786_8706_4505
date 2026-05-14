@@ -16,7 +16,13 @@ class CylinderTests {
      */
     @Test
     void testGetNormal() {
-        Cylinder cylinder = new Cylinder(1.0, new Ray(new Point(0, 0, 0), new Vector(0, 0, 1)), 5.0);
+        // Fix: Updated constructor call order (Ray, double, double)
+        Ray axis = new Ray(new Point(0, 0, 0), new Vector(0, 0, 1));
+        double radius = 1.0;
+        double height = 5.0;
+
+        Cylinder cylinder = new Cylinder(axis, radius, height);
+
         Vector expectedNormalSide = new Vector(1, 0, 0);
         Vector expectedNormalBottom = new Vector(0, 0, -1);
         Vector expectedNormalTop = new Vector(0, 0, 1);

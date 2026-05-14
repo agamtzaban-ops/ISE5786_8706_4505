@@ -1,6 +1,7 @@
 package geometries.impl;
 
 import geometries.api.Geometry;
+import geometries.api.Intersectable.Intersection;
 import primitives.Point;
 import primitives.Ray;
 import primitives.Vector;
@@ -56,13 +57,14 @@ public final class Plane extends Geometry {
     }
 
     /**
-     * Implementation of findIntersections for Plane.
+     * Helper method for calculating intersections using the NVI pattern.
      * Formula: t = n * (Q0 - P0) / (n * v)
-     * * @param ray the ray to intersect with the plane
-     * @return list containing one intersection point, or null
+     *
+     * @param ray the ray to intersect with the plane
+     * @return list containing one intersection object, or null
      */
     @Override
-    public List<Point> findIntersections(Ray ray) {
+    protected List<Intersection> calcIntersectionsHelper(Ray ray) {
         Point p0 = ray.origin();
         Vector v = ray.direction();
         Vector n = _normal;
@@ -92,8 +94,8 @@ public final class Plane extends Geometry {
 
         // Only positive t (intersection in the ray's direction)
         if (t > 0) {
-            // Refactoring: Use the new getPoint method from Ray class
-            return List.of(ray.getPoint(t));
+            // Return an Intersection object linked to this Plane
+            return List.of(new Intersection(this, ray.getPoint(t)));
         }
 
         return null;

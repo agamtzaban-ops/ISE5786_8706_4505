@@ -1,4 +1,4 @@
-package lighting; // This is the new package you created
+package lighting;
 
 import primitives.Color;
 
@@ -8,29 +8,19 @@ import primitives.Color;
  */
 public class AmbientLight {
 
-    /** The intensity of the light (its color and brightness) */
+    /** The intensity of the light */
     private final Color intensity;
 
-    /** * A static constant representing "no light" (Black color).
+    /**
+     * A static constant representing "no light" (Black color).
      * Used as a default value to avoid null pointer exceptions.
      */
-    public static final AmbientLight NONE = new AmbientLight(Color.BLACK, 0);
+    public static final AmbientLight NONE = new AmbientLight(Color.BLACK);
 
     /**
      * Primary constructor for AmbientLight.
-     * It calculates the final intensity by multiplying the color (Ia)
-     * by the attenuation factor (Ka).
-     * * @param iA The basic color of the light
-     * @param kA The attenuation factor (double)
-     */
-    public AmbientLight(Color iA, double kA) {
-        // The formula from the lecture: Ip = Ia * Ka
-        this.intensity = iA.scale(kA);
-    }
-
-    /**
-     * Internal constructor for the NONE constant.
-     * @param intensity the pre-calculated intensity
+     *
+     * @param intensity The color/intensity of the ambient light
      */
     public AmbientLight(Color intensity) {
         this.intensity = intensity;
@@ -38,6 +28,7 @@ public class AmbientLight {
 
     /**
      * Getter for the light intensity.
+     *
      * @return the intensity color
      */
     public Color getIntensity() {
