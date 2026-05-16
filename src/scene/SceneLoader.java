@@ -148,6 +148,11 @@ public class SceneLoader {
         return new Vector(Double.parseDouble(xyz[0]), Double.parseDouble(xyz[1]), Double.parseDouble(xyz[2]));
     }
 
+    /**
+     * Stub for JSON scene loading.
+     * Currently not implemented.
+     */
+    @SuppressWarnings("unused")
     public static Scene loadSceneFromJSON(String filePath, String sceneName) {
         return new Scene(sceneName);
     }
