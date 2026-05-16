@@ -4,7 +4,7 @@ import geometries.api.Geometry;
 import geometries.impl.Geometries;
 import geometries.impl.Sphere;
 import geometries.impl.Triangle;
-import lighting.AmbientLight;
+import lighting.*;
 import primitives.*;
 import org.w3c.dom.*;
 import javax.xml.parsers.*;
@@ -12,17 +12,10 @@ import java.io.File;
 
 /**
  * SceneLoader class responsible for external scene data parsing.
- * Updated for Stage 7 bonus maintenance to support Material and Emission properties
- * while maintaining backward compatibility with older XML files.
+ * Updated for Stage 7 bonus maintenance to support Material, Emission, and External Lights.
  */
 public class SceneLoader {
 
-    /**
-     * Loads a scene from an XML file configuration with Stage 7 features.
-     * @param filePath  The path to the XML file.
-     * @param sceneName The name for the newly created scene.
-     * @return A fully initialized Scene object.
-     */
     public static Scene loadSceneFromXML(String filePath, String sceneName) {
         Scene scene = new Scene(sceneName);
 
@@ -35,12 +28,12 @@ public class SceneLoader {
 
             Element root = doc.getDocumentElement();
 
-            // 1. Scene Background Initialization
+            // 1. Scene Background
             if (root.hasAttribute("background-color")) {
                 scene.setBackground(parseColor(root.getAttribute("background-color")));
             }
 
-            // 2. Ambient Light Initialization (Fixed to 1 argument using .scale for double)
+            // 2. Ambient Light
             NodeList ambientNodes = doc.getElementsByTagName("ambient-light");
             if (ambientNodes.getLength() > 0) {
                 Element ambientElement = (Element) ambientNodes.item(0);
@@ -51,10 +44,16 @@ public class SceneLoader {
                 }
             }
 
-            // 3. Geometries Initialization
+            // 3. Geometries
             NodeList geometriesNodes = doc.getElementsByTagName("geometries");
             if (geometriesNodes.getLength() > 0) {
                 parseGeometries(scene.geometries, (Element) geometriesNodes.item(0));
+            }
+
+            // 4. Lights (Stage 7 Bonus)
+            NodeList lightsNodes = doc.getElementsByTagName("lights");
+            if (lightsNodes.getLength() > 0) {
+                parseLights(scene, (Element) lightsNodes.item(0));
             }
 
         } catch (Exception e) {
@@ -64,9 +63,6 @@ public class SceneLoader {
         return scene;
     }
 
-    /**
-     * Parses geometries from the XML container.
-     */
     private static void parseGeometries(Geometries geometries, Element container) {
         NodeList children = container.getChildNodes();
         for (int i = 0; i < children.getLength(); i++) {
@@ -87,29 +83,53 @@ public class SceneLoader {
         }
     }
 
-    /**
-     * Applies Emission and Material properties to the geometry.
-     * Uses direct public field access with default values for backward compatibility.
-     */
+    private static void parseLights(Scene scene, Element container) {
+        NodeList children = container.getChildNodes();
+        for (int i = 0; i < children.getLength(); i++) {
+            Node node = children.item(i);
+            if (node.getNodeType() == Node.ELEMENT_NODE) {
+                Element el = (Element) node;
+                Color intensity = parseColor(el.getAttribute("color"));
+
+                switch (el.getTagName()) {
+                    case "directional":
+                        scene.lights.add(new DirectionalLight(intensity, parseVector(el.getAttribute("direction"))));
+                        break;
+                    case "point":
+                        PointLight pl = new PointLight(intensity, parsePoint(el.getAttribute("position")));
+                        applyAttenuation(el, pl);
+                        scene.lights.add(pl);
+                        break;
+                    case "spot":
+                        SpotLight sl = new SpotLight(intensity, parsePoint(el.getAttribute("position")), parseVector(el.getAttribute("direction")));
+                        applyAttenuation(el, sl);
+                        if (el.hasAttribute("narrowBeam")) {
+                            sl.setNarrowBeam(Integer.parseInt(el.getAttribute("narrowBeam")));
+                        }
+                        scene.lights.add(sl);
+                        break;
+                }
+            }
+        }
+    }
+
+    private static void applyAttenuation(Element el, PointLight pl) {
+        if (el.hasAttribute("kC")) pl.setKc(Double.parseDouble(el.getAttribute("kC")));
+        if (el.hasAttribute("kL")) pl.setKl(Double.parseDouble(el.getAttribute("kL")));
+        if (el.hasAttribute("kQ")) pl.setKq(Double.parseDouble(el.getAttribute("kQ")));
+    }
+
     private static void applyStage6Properties(Element el, Geometry geo) {
-        // Handle Emission
         if (el.hasAttribute("emission")) {
             geo.setEmission(parseColor(el.getAttribute("emission")));
         }
 
-        // Handle Material (Stage 7 Bonus Maintenance)
         Material mat = new Material();
-
-        // Backward compatibility: If XML lacks kd/ks, we assign default 0.5
-        // so the shapes won't render completely pitch black/gray under external lights
         double kd = el.hasAttribute("kd") ? Double.parseDouble(el.getAttribute("kd")) : 0.5;
         double ks = el.hasAttribute("ks") ? Double.parseDouble(el.getAttribute("ks")) : 0.5;
-        int shininess = el.hasAttribute("nShininess") ? Integer.parseInt(el.getAttribute("nShininess")) : 30;
+        int shininess = el.hasAttribute("nShininess") ? (int) Double.parseDouble(el.getAttribute("nShininess")) : 30;
 
-        mat.setKd(kd);
-        mat.setKs(ks);
-        mat.setShininess(shininess);
-
+        mat.setKd(kd).setKs(ks).setShininess(shininess);
         geo.setMaterial(mat);
     }
 
@@ -121,6 +141,11 @@ public class SceneLoader {
     private static Point parsePoint(String str) {
         String[] xyz = str.trim().split("\\s+");
         return new Point(Double.parseDouble(xyz[0]), Double.parseDouble(xyz[1]), Double.parseDouble(xyz[2]));
+    }
+
+    private static Vector parseVector(String str) {
+        String[] xyz = str.trim().split("\\s+");
+        return new Vector(Double.parseDouble(xyz[0]), Double.parseDouble(xyz[1]), Double.parseDouble(xyz[2]));
     }
 
     public static Scene loadSceneFromJSON(String filePath, String sceneName) {

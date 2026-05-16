@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<scene background-color="0 0 0">
+    <ambient-light color="38 38 38" ka="1.0"/>
+    <geometries>
+        <triangle p0="-110 -110 -150" p1="95 100 -150" p2="110 -110 -150" kd="0.5" ks="0.5" nShininess="301"/>
+        <triangle p0="-110 -110 -150" p1="95 100 -150" p2="-75 78 100" kd="0.5" ks="0.5" nShininess="301"/>
+    </geometries>
+    <lights>
+        <spot color="800 500 250" position="30 10 -100" direction="-2 -2 -2" kC="1.0" kL="0.001" kQ="0.00004" narrowBeam="10"/>
+    </lights>
+</scene>
