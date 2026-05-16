@@ -1,55 +1,72 @@
 package renderer;
 
 import geometries.api.Intersectable.Intersection;
-import primitives.Color;
-import primitives.Ray;
+import lighting.LightSource;
+import primitives.*;
 import scene.Scene;
 
 /**
- * Basic implementation of a ray tracer.
+ * Implementation of RayTracer using Phong reflection model.
  */
 public class SimpleRayTracer extends RayTracerBase {
 
-    /**
-     * Constructor receiving the scene.
-     *
-     * @param scene the scene to render
-     */
     public SimpleRayTracer(Scene scene) {
         super(scene);
     }
 
     @Override
     public Color traceRay(Ray ray) {
-        // Find intersections of the ray with scene geometries using NVI
         var intersections = _scene.geometries.calcIntersections(ray);
-
-        // If no intersections, return background color
         if (intersections == null) {
             return _scene.background;
         }
 
-        // Find the closest intersection object
-        Intersection closestIntersection = ray.findClosestIntersection(intersections);
-
-        // Calculate and return the color for the closest intersection
-        return calcColor(closestIntersection);
+        Intersection closestPoint = ray.findClosestIntersection(intersections);
+        return calcColor(closestPoint, ray);
     }
 
     /**
-     * Helper method to calculate the color at a specific intersection.
-     * Calculates the color by adding the ambient light scaled by the material's
-     * attenuation factor, and the geometry's emission color.
-     * Formula: Color = (Ambient * kA) + Emission
-     *
-     * @param intersection the intersection object containing the geometry, point, and material
-     * @return the calculated color
+     * Calculates the color at an intersection point.
      */
-    private Color calcColor(Intersection intersection) {
-        return _scene.ambientLight.getIntensity()
-                // Scale ambient light by the intersection material's attenuation factor
-                .scale(intersection.material.kA)
-                // Add the emission color of the intersected geometry
-                .add(intersection.geometry.getEmission());
+    private Color calcColor(Intersection intersection, Ray ray) {
+        if (!preprocessIntersection(intersection, ray)) {
+            return intersection.geometry.getEmission()
+                    .add(_scene.ambientLight.getIntensity());
+        }
+
+        return intersection.geometry.getEmission()
+                .add(_scene.ambientLight.getIntensity())
+                .add(calcColorLocalEffects(intersection));
+    }
+
+    /**
+     * Calculates local lighting effects (Diffuse + Specular).
+     */
+    private Color calcColorLocalEffects(Intersection intersection) {
+        Color color = Color.BLACK;
+        for (LightSource lightSource : _scene.lights) {
+            if (preprocessLightSource(intersection, lightSource)) {
+                Color iL = lightSource.getIntensity(intersection.p);
+                color = color.add(iL.scale(calcDiffuse(intersection)
+                        .add(calcSpecular(intersection))));
+            }
+        }
+        return color;
+    }
+
+    /**
+     * Calculate Diffuse: kD * |n.l|
+     */
+    private Double3 calcDiffuse(Intersection intersection) {
+        return intersection.material.kD.scale(Math.abs(intersection.nl));
+    }
+
+    /**
+     * Calculate Specular: kS * (v.(-r))^nShininess
+     */
+    private Double3 calcSpecular(Intersection intersection) {
+        double vrn = Math.pow(Math.max(0, intersection.vminusR),
+                intersection.material.nShininess);
+        return intersection.material.kS.scale(vrn);
     }
 }

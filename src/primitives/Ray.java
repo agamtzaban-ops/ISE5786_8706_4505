@@ -95,7 +95,7 @@ public final class Ray {
 
         for (Intersection intersection : intersections) {
             // Efficiency: Using squared distance instead of regular distance (avoids sqrt)
-            double distanceSquared = _origin.distanceSquared(intersection.point);
+            double distanceSquared = _origin.distanceSquared(intersection.p);
 
             if (distanceSquared < minDistance) {
                 minDistance = distanceSquared;
@@ -119,6 +119,6 @@ public final class Ray {
                 points.stream()
                         .map(point -> new Intersection(null, point))
                         .toList()
-        ).point;
+        ).p;
     }
 }

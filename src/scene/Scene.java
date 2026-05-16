@@ -1,28 +1,29 @@
 package scene;
 
-import java.util.LinkedList;
-import java.util.List;
 import geometries.impl.Geometries;
 import lighting.AmbientLight;
+import lighting.LightSource;
 import primitives.Color;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
- * Scene class represents a 3D scene containing geometries,
- * background color, and ambient light.
- * This is a Passive Data Structure (PDS).
+ * Scene class represents a 3D scene.
  */
 public class Scene {
     /** The name of the scene */
     public final String name;
-    /** The background color of the scene, initialized to Black */
+    /** The background color of the scene */
     public Color background = Color.BLACK;
-    /** The ambient light of the scene, initialized to NONE */
+    /** The ambient light of the scene */
     public AmbientLight ambientLight = AmbientLight.NONE;
     /** The collection of geometries in the scene */
-    public Geometries geometries = new Geometries();
+    public geometries.impl.Geometries geometries = new geometries.impl.Geometries();
+    /** Light sources in the scene */
+    public List<LightSource> lights = new ArrayList<>();
 
     /**
-     * Constructor that receives the scene name.
+     * Constructor.
      * @param name the name of the scene
      */
     public Scene(String name) {
@@ -30,7 +31,7 @@ public class Scene {
     }
 
     /**
-     * Setter for background color - Method Chaining.
+     * Setter for background color.
      * @param background the background color
      * @return the scene object itself
      */
@@ -40,7 +41,7 @@ public class Scene {
     }
 
     /**
-     * Setter for ambient light - Method Chaining.
+     * Setter for ambient light.
      * @param ambientLight the ambient light
      * @return the scene object itself
      */
@@ -50,12 +51,28 @@ public class Scene {
     }
 
     /**
-     * Setter for geometries - Method Chaining.
+     * Setter for geometries.
      * @param geometries the geometries collection
      * @return the scene object itself
      */
-    public Scene setGeometries(Geometries geometries) {
+    public Scene setGeometries(geometries.impl.Geometries geometries) {
         this.geometries = geometries;
+        return this;
+    }
+
+    /**
+     * Adds light sources to the scene.
+     * @param lights variable number of light sources
+     * @return the scene itself
+     */
+    public Scene setLights(LightSource... lights) {
+        if (lights != null)
+        {
+            for (LightSource light : lights)
+            {
+                this.lights.add(light);
+            }
+        }
         return this;
     }
 }

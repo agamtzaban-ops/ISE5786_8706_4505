@@ -103,9 +103,6 @@ public class SceneLoader {
         // Handle Material
         Material mat = new Material();
 
-        if (el.hasAttribute("ka"))
-            mat.setKa(Double.parseDouble(el.getAttribute("ka")));
-
         if (el.hasAttribute("kd"))
             mat.setKd(Double.parseDouble(el.getAttribute("kd")));
 

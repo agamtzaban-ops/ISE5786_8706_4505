@@ -66,7 +66,7 @@ public class Cylinder extends Tube {
             Point p0 = _axis.origin();
             Vector v = _axis.direction();
             for (Intersection intersection : tubeIntersections) {
-                double t = alignZero(v.dotProduct(intersection.point.subtract(p0)));
+                double t = alignZero(v.dotProduct(intersection.p.subtract(p0)));
                 // Only keep points strictly within the cylinder's height
                 if (t > 0 && t < _height) {
                     result.add(intersection);
