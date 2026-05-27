@@ -55,21 +55,39 @@ public abstract class Intersectable {
     }
 
     /**
-     * Finds intersections of a ray with the geometry.
-     * @param ray the ray to check
+     * Finds all intersections of a ray with the geometry, without distance limits.
+     * Delegates to the overloaded method with infinite distance.
+     * * @param ray the ray to check
      * @return list of intersection objects
      */
     public final List<Intersection> calcIntersections(Ray ray) {
-        return calcIntersectionsHelper(ray);
+        return calcIntersections(ray, Double.POSITIVE_INFINITY);
     }
 
     /**
-     * Helper method for calculating intersections (NVI Pattern).
+     * Finds intersections of a ray with the geometry up to a specified maximum distance.
+     * Uses the NVI (Non-Virtual Interface) pattern to enforce the method signature.
+     * * @param ray the ray to check
+     * @param maxDistance the maximum allowed distance for an intersection
+     * @return list of intersection objects within the given distance
      */
-    protected abstract List<Intersection> calcIntersectionsHelper(Ray ray);
+    public final List<Intersection> calcIntersections(Ray ray, double maxDistance) {
+        return calcIntersectionsHelper(ray, maxDistance);
+    }
+
+    /**
+     * Helper method for calculating intersections up to a maximum distance.
+     * Must be implemented by all geometric shapes.
+     * * @param ray the ray to check
+     * @param maxDistance the maximum allowed distance
+     * @return list of valid intersection objects
+     */
+    protected abstract List<Intersection> calcIntersectionsHelper(Ray ray, double maxDistance);
 
     /**
      * Finds intersections as points only.
+     * * @param ray the ray to check
+     * @return list of intersection points
      */
     public final List<Point> findIntersections(Ray ray) {
         var intersections = calcIntersections(ray);

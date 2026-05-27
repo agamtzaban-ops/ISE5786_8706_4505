@@ -44,7 +44,7 @@ public class Tube extends RadialGeometry {
      * @return list of intersections, or null if none
      */
     @Override
-    protected List<Intersection> calcIntersectionsHelper(Ray ray) {
+    protected List<Intersection> calcIntersectionsHelper(Ray ray, double maxDistance) {
         Vector v = ray.direction();
         Point p0 = ray.origin();
         Vector va = _axis.direction();
@@ -100,16 +100,25 @@ public class Tube extends RadialGeometry {
         double t1 = alignZero((-b - sqrtDisc) / (2 * a));
         double t2 = alignZero((-b + sqrtDisc) / (2 * a));
 
-        // Step 5: Return only positive intersections wrapped in Intersection objects
-        if (t1 > 0 && t2 > 0) {
+        // We will check for each point individually whether it is positive and within the range of maxDistance        boolean t1Valid = t1 > 0 && alignZero(t1 - maxDistance) <= 0;
+        boolean t1Valid = t1 > 0 && alignZero(t1 - maxDistance) <= 0;
+        boolean t2Valid = t2 > 0 && alignZero(t2 - maxDistance) <= 0;
+
+        // If both points are in the allowed range - we will return both
+        if (t1Valid && t2Valid) {
             return List.of(
                     new Intersection(this, ray.getPoint(t1)),
                     new Intersection(this, ray.getPoint(t2))
             );
         }
-        if (t1 > 0) return List.of(new Intersection(this, ray.getPoint(t1)));
-        if (t2 > 0) return List.of(new Intersection(this, ray.getPoint(t2)));
 
+       // If only the first one is valid
+       if (t1Valid) return List.of(new Intersection(this, ray.getPoint(t1)));
+
+        // If only the second one is valid
+        if (t2Valid) return List.of(new Intersection(this, ray.getPoint(t2)));
+
+        // if both points are not valid return null
         return null;
     }
 }

@@ -54,12 +54,12 @@ public class Cylinder extends Tube {
     }
 
     @Override
-    protected List<Intersection> calcIntersectionsHelper(Ray ray) {
+    protected List<Intersection> calcIntersectionsHelper(Ray ray,double maxDistance) {
         List<Intersection> result = new LinkedList<>();
 
         // Step 1: Get intersections with the infinite tube
         // Exceptional call to super's helper is required for finite logic in NVI
-        List<Intersection> tubeIntersections = super.calcIntersectionsHelper(ray);
+        List<Intersection> tubeIntersections = super.calcIntersectionsHelper(ray,maxDistance);
 
         // Step 2: Filter tube intersections by height boundaries
         if (tubeIntersections != null) {

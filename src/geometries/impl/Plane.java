@@ -64,7 +64,7 @@ public final class Plane extends Geometry {
      * @return list containing one intersection object, or null
      */
     @Override
-    protected List<Intersection> calcIntersectionsHelper(Ray ray) {
+    protected List<Intersection> calcIntersectionsHelper(Ray ray,double maxDistance) {
         Point p0 = ray.origin();
         Vector v = ray.direction();
         Vector n = _normal;
@@ -93,7 +93,8 @@ public final class Plane extends Geometry {
         double t = alignZero(nQminusP0 / nv);
 
         // Only positive t (intersection in the ray's direction)
-        if (t > 0) {
+        //we add if maxDistance<=t
+        if (t > 0 && alignZero(t - maxDistance) <= 0) {
             // Return an Intersection object linked to this Plane
             return List.of(new Intersection(this, ray.getPoint(t)));
         }

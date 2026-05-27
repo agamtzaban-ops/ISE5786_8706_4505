@@ -49,13 +49,14 @@ public class Geometries extends Intersectable {
      * @return list of intersection objects or null if none found
      */
     @Override
-    protected List<Intersection> calcIntersectionsHelper(Ray ray) {
+    protected List<Intersection> calcIntersectionsHelper(Ray ray,double maxDistance) {
         List<Intersection> result = null;
 
         // Using for-each loop to iterate through all geometries
         for (Intersectable geo : _geometries) {
             // NVI Pattern: Call the public method, NOT the helper!
-            List<Intersection> geoIntersections = geo.calcIntersections(ray);
+            //add maxDistance
+            List<Intersection> geoIntersections = geo.calcIntersections(ray,maxDistance);
 
             if (geoIntersections != null) {
                 // Lazy initialization: create the list only when the first intersection is found

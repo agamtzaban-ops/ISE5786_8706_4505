@@ -99,9 +99,10 @@ public class Polygon extends Geometry {
      * @return a list containing the intersection object if it exists, or null otherwise
      */
     @Override
-    protected List<Intersection> calcIntersectionsHelper(Ray ray) {
+    protected List<Intersection> calcIntersectionsHelper(Ray ray,double maxDistance) {
         // 1. Intersect with the plane first
-        List<Point> planeIntersections = _plane.findIntersections(ray);
+        //add maxDistance
+        List<Intersection> planeIntersections = _plane.calcIntersections(ray,maxDistance);
         if (planeIntersections == null) {
             return null;
         }
@@ -135,6 +136,6 @@ public class Polygon extends Geometry {
         }
 
         // Return the intersection point wrapped in an Intersection object linked to this Polygon
-        return List.of(new Intersection(this, planeIntersections.get(0)));
+        return List.of(new Intersection(this, planeIntersections.get(0).p));
     }
 }

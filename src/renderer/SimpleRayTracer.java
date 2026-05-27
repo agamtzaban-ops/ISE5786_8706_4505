@@ -4,15 +4,19 @@ import geometries.api.Intersectable.Intersection;
 import lighting.LightSource;
 import primitives.*;
 import scene.Scene;
+import java.util.List;
 
 /**
  * Implementation of RayTracer using the Phong reflection model.
  */
 public class SimpleRayTracer extends RayTracerBase {
 
+    /** Small shift factor to prevent self-shadowing due to floating-point inaccuracies */
+    private static final double DELTA = 0.1;
+
     /**
      * Constructor for SimpleRayTracer.
-     * * @param scene The 3D scene to render.
+     * @param scene The 3D scene to render.
      */
     public SimpleRayTracer(Scene scene) {
         super(scene);
@@ -46,6 +50,7 @@ public class SimpleRayTracer extends RayTracerBase {
 
     /**
      * Calculates local lighting effects (Diffuse + Specular) from all light sources.
+     * Integrates shadow checking for each light source.
      *
      * @param intersection The intersection point.
      * @param ray The intersecting ray.
@@ -69,14 +74,53 @@ public class SimpleRayTracer extends RayTracerBase {
 
             // Sign check: Ensures the light hits the surface from the same side the camera sees
             if (nl * nv > 0) {
-                Color iL = lightSource.getIntensity(intersection.p);
-                color = color.add(
-                        iL.scale(calcDiffuse(material, nl)
-                                .add(calcSpecular(material, n, l, nl, v)))
-                );
+
+                // --- STAGE 8: SHADOW CHECKING ---
+                // If the intersection is updated to hold light and vectors as per course slides:
+                // We validate the light source and check if the point is unshaded
+                if (unshaded(lightSource, l, n, intersection)) {
+                    Color iL = lightSource.getIntensity(intersection.p);
+                    color = color.add(
+                            iL.scale(calcDiffuse(material, nl)
+                                    .add(calcSpecular(material, n, l, nl, v)))
+                    );
+                }
             }
         }
         return color;
+    }
+
+    /**
+     * Checks if a specific point is unshaded (has a direct line of sight to the light source).
+     *
+     * @param lightSource The light source being evaluated.
+     * @param l The vector from the light source to the point.
+     * @param n The normal vector at the intersection point.
+     * @param intersection The intersection data.
+     * @return true if the point is unshaded, false if it is blocked by another geometry.
+     */
+    private boolean unshaded(LightSource lightSource, Vector l, Vector n, Intersection intersection) {
+        // The shadow ray direction is opposite to the light vector (from point to light) [cite: 28]
+        Vector pointToLight = l.scale(-1);
+
+        // Calculate the tiny shift along the normal vector to prevent self-shadowing [cite: 28, 30]
+        double nl = n.dotProduct(l);
+        double shift = nl < 0 ? DELTA : -DELTA; // Shifting outwards based on the angle [cite: 28]
+        Vector deltaVector = n.scale(shift);
+
+        // Move the ray head slightly away from the geometry surface [cite: 28, 30]
+        Point shiftedPoint = intersection.p.add(deltaVector);
+        Ray shadowRay = new Ray(shiftedPoint, pointToLight);
+
+        // 1. Calculate the distance from the intersection point to the light source
+        double lightDistance = lightSource.getDistance(intersection.p);
+
+        // 2. Call the updated method and pass the maximum distance to filter distant intersections!
+        List<Intersection> shadowIntersections = _scene.geometries.calcIntersections(shadowRay, lightDistance);
+
+        // 3. If null is returned - nothing blocks the light in this range -> the point is unshaded (true)
+        // If a list is returned - there is an object blocking the light -> the point is in shadow (false)
+        return shadowIntersections == null;
     }
 
     /**
