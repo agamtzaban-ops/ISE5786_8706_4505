@@ -1,6 +1,7 @@
 package geometries.impl;
 
 import org.junit.jupiter.api.Test;
+import geometries.api.Intersectable.Intersection;
 import primitives.Point;
 import primitives.Ray;
 import primitives.Vector;
@@ -121,5 +122,35 @@ class PlaneTests {
         // BV32: Ray begins in the plane exactly at the plane's reference point (Q)
         assertNull(PLANE.findIntersections(new Ray(new Point(0, 0, 1), new Vector(1, 1, 1))),
                 ERROR_PLANE_INTERSECTION);
+    }
+
+    // ================== STAGE 8 TESTS ==================
+
+    /**
+     * Test method for {@link geometries.impl.Plane#calcIntersections(primitives.Ray, double)}.
+     */
+    @Test
+    void testCalcIntersectionsMaxDistance() {
+        // The constant PLANE is at Z=1, looking upwards (Normal: 0,0,1)
+        // Ray starts at (0, 0, -1) and goes straight up towards the plane
+        // The expected intersection point is (0, 0, 1) at distance t = 2
+        Ray ray = new Ray(new Point(0, 0, -1), new Vector(0, 0, 1));
+        Point expectedIntersection = new Point(0, 0, 1);
+
+        // Case 1: maxDistance is smaller than the distance to the plane (1.0 < 2)
+        assertNull(PLANE.calcIntersections(ray, 1.0),
+                "Plane intersection should be filtered out if maxDistance is before the plane");
+
+        // Case 2: maxDistance is exactly at the plane intersection point (2.0 == 2)
+        List<Intersection> resultExact = PLANE.calcIntersections(ray, 2.0);
+        assertNotNull(resultExact, "Should find 1 intersection when maxDistance is exactly on the plane");
+        assertEquals(1, resultExact.size(), "Wrong number of intersections for exact maxDistance");
+        assertEquals(expectedIntersection, resultExact.get(0).p, "Wrong intersection point for exact maxDistance");
+
+        // Case 3: maxDistance is beyond the plane intersection point (3.0 > 2)
+        List<Intersection> resultBeyond = PLANE.calcIntersections(ray, 3.0);
+        assertNotNull(resultBeyond, "Should find 1 intersection when maxDistance is beyond the plane");
+        assertEquals(1, resultBeyond.size(), "Wrong number of intersections for broad maxDistance");
+        assertEquals(expectedIntersection, resultBeyond.get(0).p, "Wrong intersection point for broad maxDistance");
     }
 }

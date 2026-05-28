@@ -1,6 +1,7 @@
 package geometries.impl;
 
 import org.junit.jupiter.api.Test;
+import geometries.api.Intersectable.Intersection;
 import primitives.Point;
 import primitives.Ray;
 import primitives.Vector;
@@ -112,5 +113,37 @@ class TriangleTests {
         assertNotNull(result, ERROR_TRIANGLE_INTERSECTION);
         assertEquals(1, result.size(), ERROR_TRIANGLE_INTERSECTION);
         assertEquals(List.of(new Point(0, 0.5, 0)), result, ERROR_TRIANGLE_INTERSECTION);
+    }
+
+    // ================== STAGE 8 TESTS ==================
+
+    /**
+     * Test method for {@link geometries.impl.Triangle#calcIntersections(primitives.Ray, double)}.
+     */
+    @Test
+    void testCalcIntersectionsMaxDistance() {
+        // Simple triangle on the Z=0 plane (X-Y plane)
+        Triangle triangle = new Triangle(new Point(0, 1, 0), new Point(1, 0, 0), new Point(-1, 0, 0));
+
+        // Ray starts at (0, 0.5, -1) and goes straight up towards the triangle
+        // The expected intersection point is (0, 0.5, 0) inside the triangle at distance t = 1
+        Ray ray = new Ray(new Point(0, 0.5, -1), new Vector(0, 0, 1));
+        Point expectedIntersection = new Point(0, 0.5, 0);
+
+        // Case 1: maxDistance is smaller than the distance to the triangle (0.5 < 1)
+        assertNull(triangle.calcIntersections(ray, 0.5),
+                "Triangle intersection should be filtered out if maxDistance is before the triangle");
+
+        // Case 2: maxDistance is exactly at the triangle intersection point (1.0 == 1)
+        List<Intersection> resultExact = triangle.calcIntersections(ray, 1.0);
+        assertNotNull(resultExact, "Should find 1 intersection when maxDistance is exactly on the triangle");
+        assertEquals(1, resultExact.size(), "Wrong number of intersections for exact maxDistance");
+        assertEquals(expectedIntersection, resultExact.get(0).p, "Wrong intersection point for exact maxDistance");
+
+        // Case 3: maxDistance is beyond the triangle intersection point (2.0 > 1)
+        List<Intersection> resultBeyond = triangle.calcIntersections(ray, 2.0);
+        assertNotNull(resultBeyond, "Should find 1 intersection when maxDistance is beyond the triangle");
+        assertEquals(1, resultBeyond.size(), "Wrong number of intersections for broad maxDistance");
+        assertEquals(expectedIntersection, resultBeyond.get(0).p, "Wrong intersection point for broad maxDistance");
     }
 }

@@ -1,6 +1,7 @@
 package geometries.impl;
 
 import org.junit.jupiter.api.Test;
+import geometries.api.Intersectable.Intersection;
 import primitives.*;
 import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
@@ -73,5 +74,60 @@ class TubeTests {
         List<Point> resultCenter = tube.findIntersections(new Ray(new Point(0, 0, 1), new Vector(1, 0, 0)));
         assertNotNull(resultCenter, "Ray from center - should hit");
         assertEquals(1, resultCenter.size(), "Ray from center should hit once");
+    }
+
+    // ================== STAGE 8 TESTS ==================
+
+    /**
+     * Test method for {@link geometries.impl.Tube#calcIntersections(primitives.Ray, double)}.
+     */
+    @Test
+    void testCalcIntersectionsMaxDistance() {
+        Ray axis = new Ray(new Point(0, 0, 1), new Vector(0, 0, 1));
+        Tube tube = new Tube(1.0, axis);
+
+        // Ray starts at (2, 0, 1) and moves towards the tube in direction (-1, 0, 0)
+        // Expected intersections:
+        // P1: (1, 0, 1) at distance t1 = 1.0
+        // P2: (-1, 0, 1) at distance t2 = 3.0
+        Ray ray = new Ray(new Point(2, 0, 1), new Vector(-1, 0, 0));
+        Point p1 = new Point(1, 0, 1);
+        Point p2 = new Point(-1, 0, 1);
+
+        // Case 1: maxDistance is smaller than the distance to the first intersection point (0.5 < 1)
+        assertNull(tube.calcIntersections(ray, 0.5),
+                "Intersections should be filtered out if maxDistance is before the first intersection");
+
+        // Case 2: maxDistance is exactly at the first intersection point (1.0 == 1)
+        List<Intersection> resultExactFirst = tube.calcIntersections(ray, 1.0);
+        assertNotNull(resultExactFirst, "Should find 1 intersection");
+        assertEquals(1, resultExactFirst.size(), "Wrong number of intersections");
+        assertEquals(p1, resultExactFirst.get(0).p, "Wrong intersection point");
+
+        // Case 3: maxDistance is between the first and second intersection points (2.0)
+        List<Intersection> resultBetween = tube.calcIntersections(ray, 2.0);
+        assertNotNull(resultBetween, "Should find 1 intersection");
+        assertEquals(1, resultBetween.size(), "Wrong number of intersections");
+        assertEquals(p1, resultBetween.get(0).p, "Wrong intersection point");
+
+        // Case 4: maxDistance is exactly at the second intersection point (3.0 == 3)
+        List<Intersection> resultExactSecond = tube.calcIntersections(ray, 3.0);
+        assertNotNull(resultExactSecond, "Should find 2 intersections");
+        assertEquals(2, resultExactSecond.size(), "Wrong number of intersections");
+        assertTrue((resultExactSecond.get(0).p.equals(p1) && resultExactSecond.get(1).p.equals(p2)) ||
+                        (resultExactSecond.get(0).p.equals(p2) && resultExactSecond.get(1).p.equals(p1)),
+                "Missing expected intersection points");
+
+        // Case 5: maxDistance is beyond the second intersection point (4.0 > 3)
+        List<Intersection> resultBeyond = tube.calcIntersections(ray, 4.0);
+        assertNotNull(resultBeyond, "Should find 2 intersections");
+        assertEquals(2, resultBeyond.size(), "Wrong number of intersections");
+        assertTrue((resultBeyond.get(0).p.equals(p1) && resultBeyond.get(1).p.equals(p2)) ||
+                        (resultBeyond.get(0).p.equals(p2) && resultBeyond.get(1).p.equals(p1)),
+                "Missing expected intersection points");
+
+        // Case 6: maxDistance is zero (0.0)
+        assertNull(tube.calcIntersections(ray, 0.0),
+                "Intersections should be null if maxDistance is zero");
     }
 }

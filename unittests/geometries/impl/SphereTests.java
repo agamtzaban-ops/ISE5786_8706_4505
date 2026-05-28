@@ -1,6 +1,7 @@
 package geometries.impl;
 
 import org.junit.jupiter.api.Test;
+import geometries.api.Intersectable.Intersection;
 import primitives.Point;
 import primitives.Ray;
 import primitives.Vector;
@@ -131,5 +132,59 @@ class SphereTests {
         assertEquals(List.of(new Point(1.5, 0.8660254037844386, 0)),
                 SPHERE.findIntersections(new Ray(new Point(1.5, 0, 0), new Vector(0, 1, 0))),
                 ERROR_SPHERE_INTERSECTION);
+    }
+
+    // ================== STAGE 8 TESTS ==================
+
+    /**
+     * Test method for {@link geometries.impl.Sphere#calcIntersections(primitives.Ray, double)}.
+     */
+    @Test
+    void testCalcIntersectionsMaxDistance() {
+        // Ray crosses the sphere twice through the center
+        // Ray origin: (-1, 0, 0), direction: (1, 0, 0)
+        // Sphere center: (1, 0, 0), radius: 1
+        // Expected intersections:
+        // P1: (0, 0, 0) at distance t1 = 1
+        // P2: (2, 0, 0) at distance t2 = 3
+        Ray ray = new Ray(new Point(-1, 0, 0), new Vector(1, 0, 0));
+        Point p1 = new Point(0, 0, 0);
+        Point p2 = new Point(2, 0, 0);
+
+        // Q1: maxDistance is smaller than the distance to the first intersection point (0.5 < 1)
+        assertNull(SPHERE.calcIntersections(ray, 0.5),
+                "Q1: Intersections should be filtered out if maxDistance is before the first intersection");
+
+        // Q2: maxDistance is exactly at the first intersection point (1.0 == 1)
+        List<Intersection> resultQ2 = SPHERE.calcIntersections(ray, 1.0);
+        assertNotNull(resultQ2, "Q2: Should find 1 intersection");
+        assertEquals(1, resultQ2.size(), "Q2: Wrong number of intersections");
+        assertEquals(p1, resultQ2.get(0).p, "Q2: Wrong intersection point");
+
+        // Q3: maxDistance is between the first and second intersection points (2.0)
+        List<Intersection> resultQ3 = SPHERE.calcIntersections(ray, 2.0);
+        assertNotNull(resultQ3, "Q3: Should find 1 intersection");
+        assertEquals(1, resultQ3.size(), "Q3: Wrong number of intersections");
+        assertEquals(p1, resultQ3.get(0).p, "Q3: Wrong intersection point");
+
+        // Q4: maxDistance is exactly at the second intersection point (3.0 == 3)
+        List<Intersection> resultQ4 = SPHERE.calcIntersections(ray, 3.0);
+        assertNotNull(resultQ4, "Q4: Should find 2 intersections");
+        assertEquals(2, resultQ4.size(), "Q4: Wrong number of intersections");
+        assertTrue((resultQ4.get(0).p.equals(p1) && resultQ4.get(1).p.equals(p2)) ||
+                        (resultQ4.get(0).p.equals(p2) && resultQ4.get(1).p.equals(p1)),
+                "Q4: Missing expected intersection points");
+
+        // Q5: maxDistance is beyond the second intersection point (4.0 > 3)
+        List<Intersection> resultQ5 = SPHERE.calcIntersections(ray, 4.0);
+        assertNotNull(resultQ5, "Q5: Should find 2 intersections");
+        assertEquals(2, resultQ5.size(), "Q5: Wrong number of intersections");
+        assertTrue((resultQ5.get(0).p.equals(p1) && resultQ5.get(1).p.equals(p2)) ||
+                        (resultQ5.get(0).p.equals(p2) && resultQ5.get(1).p.equals(p1)),
+                "Q5: Missing expected intersection points");
+
+        // Q6: maxDistance is zero (0.0)
+        assertNull(SPHERE.calcIntersections(ray, 0.0),
+                "Q6: Intersections should be null if maxDistance is zero");
     }
 }

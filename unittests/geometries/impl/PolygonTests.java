@@ -4,11 +4,13 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
 
+import geometries.api.Intersectable.Intersection;
 import geometries.impl.Plane;
 import geometries.impl.Polygon;
 import primitives.Point;
@@ -116,5 +118,42 @@ class PolygonTests {
             Vector edge = pts[i].subtract(pts[i == 0 ? pts.length - 1 : i - 1]);
             assertEquals(0d, result.dotProduct(edge), DELTA, "Polygon normal is not orthogonal to an edge");
         }
+    }
+
+    // ================== STAGE 8 TESTS ==================
+
+    /**
+     * Test method for {@link Polygon#calcIntersections(primitives.Ray, double)}.
+     */
+    @Test
+    void testCalcIntersectionsMaxDistance() {
+        // Simple square polygon on the Z=0 plane (X-Y plane)
+        Polygon polygon = new Polygon(
+                new Point(0, 0, 0),
+                new Point(2, 0, 0),
+                new Point(2, 2, 0),
+                new Point(0, 2, 0)
+        );
+
+        // Ray starts at (1, 1, -1) and goes straight up towards the polygon
+        // The expected intersection point is (1, 1, 0) inside the polygon at distance t = 1
+        Ray ray = new Ray(new Point(1, 1, -1), new Vector(0, 0, 1));
+        Point expectedIntersection = new Point(1, 1, 0);
+
+        // Case 1: maxDistance is smaller than the distance to the polygon (0.5 < 1)
+        assertNull(polygon.calcIntersections(ray, 0.5),
+                "Polygon intersection should be filtered out if maxDistance is before the polygon");
+
+        // Case 2: maxDistance is exactly at the polygon intersection point (1.0 == 1)
+        List<Intersection> resultExact = polygon.calcIntersections(ray, 1.0);
+        assertNotNull(resultExact, "Should find 1 intersection when maxDistance is exactly on the polygon");
+        assertEquals(1, resultExact.size(), "Wrong number of intersections for exact maxDistance");
+        assertEquals(expectedIntersection, resultExact.get(0).p, "Wrong intersection point for exact maxDistance");
+
+        // Case 3: maxDistance is beyond the polygon intersection point (2.0 > 1)
+        List<Intersection> resultBeyond = polygon.calcIntersections(ray, 2.0);
+        assertNotNull(resultBeyond, "Should find 1 intersection when maxDistance is beyond the polygon");
+        assertEquals(1, resultBeyond.size(), "Wrong number of intersections for broad maxDistance");
+        assertEquals(expectedIntersection, resultBeyond.get(0).p, "Wrong intersection point for broad maxDistance");
     }
 }
