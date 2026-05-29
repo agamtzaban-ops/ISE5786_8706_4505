@@ -121,4 +121,24 @@ public final class Ray {
                         .toList()
         ).p;
     }
+    /**
+     * Constant for shifting the ray origin to prevent self-intersection.
+     */
+    private static final double DELTA = 0.1;
+
+    /**
+     * Constructor for a secondary ray that shifts the origin slightly
+     * along the normal to prevent self-intersection.
+     *
+     * @param head      The original intersection point.
+     * @param direction The direction of the new ray.
+     * @param n         The normal vector at the intersection point.
+     */
+    public Ray(Point head, Vector direction, Vector n) {
+        double nv = primitives.Util.alignZero(n.dotProduct(direction));
+        Vector delta = n.scale(nv > 0 ? DELTA : -DELTA);
+
+        this._origin = nv == 0 ? head : head.add(delta);
+        this._direction = direction.normalize();
+    }
 }

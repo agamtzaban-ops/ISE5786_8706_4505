@@ -2,26 +2,30 @@ package primitives;
 
 /**
  * Material class for Phong Reflection Model.
+ * Updated setter names to match the course's provided tests.
  */
 public class Material {
     /** Diffuse reflection coefficient */
     public Double3 kD = Double3.ZERO;
+
     /** Specular reflection coefficient */
     public Double3 kS = Double3.ZERO;
+
+    /** Transparency (Transmission) attenuation factor */
+    public Double3 kT = Double3.ZERO;
+
+    /** Reflection attenuation factor */
+    public Double3 kR = Double3.ZERO;
+
     /** Shininess factor */
     public int nShininess = 0;
-
-    /** Transparency (Transmission) coefficient */
-    public Double3 kT = Double3.ZERO;
-    /** Reflection coefficient */
-    public Double3 kR = Double3.ZERO;
 
     /**
      * Setter for kD (Double3) - Method Chaining
      * @param kD diffuse coefficient
      * @return material object
      */
-    public Material setKd(Double3 kD) {
+    public Material setKD(Double3 kD) {
         this.kD = kD;
         return this;
     }
@@ -31,7 +35,7 @@ public class Material {
      * @param kD diffuse coefficient
      * @return material object
      */
-    public Material setKd(double kD) {
+    public Material setKD(double kD) {
         this.kD = new Double3(kD);
         return this;
     }
@@ -41,7 +45,7 @@ public class Material {
      * @param kS specular coefficient
      * @return material object
      */
-    public Material setKs(Double3 kS) {
+    public Material setKS(Double3 kS) {
         this.kS = kS;
         return this;
     }
@@ -51,7 +55,7 @@ public class Material {
      * @param kS specular coefficient
      * @return material object
      */
-    public Material setKs(double kS) {
+    public Material setKS(double kS) {
         this.kS = new Double3(kS);
         return this;
     }
@@ -71,7 +75,7 @@ public class Material {
      * @param kT transparency coefficient
      * @return material object
      */
-    public Material setKt(Double3 kT) {
+    public Material setKT(Double3 kT) {
         this.kT = kT;
         return this;
     }
@@ -81,7 +85,7 @@ public class Material {
      * @param kT transparency coefficient
      * @return material object
      */
-    public Material setKt(double kT) {
+    public Material setKT(double kT) {
         this.kT = new Double3(kT);
         return this;
     }
@@ -91,7 +95,7 @@ public class Material {
      * @param kR reflection coefficient
      * @return material object
      */
-    public Material setKr(Double3 kR) {
+    public Material setKR(Double3 kR) {
         this.kR = kR;
         return this;
     }
@@ -101,13 +105,28 @@ public class Material {
      * @param kR reflection coefficient
      * @return material object
      */
-    public Material setKr(double kR) {
+    public Material setKR(double kR) {
         this.kR = new Double3(kR);
         return this;
     }
 
     /* --- Backwards Compatibility for Tests & Loader --- */
-    // We add these but don't save the value to keep the class "clean" as per instructions
-    public Material setKa(Double3 ka) { return this; }
-    public Material setKa(double ka) { return this; }
+    public Material setKA(Double3 ka) { return this; }
+    public Material setKA(double ka) { return this; }
+
+    /* --- Backwards Compatibility for Old Tests (Stages 6 & 7) --- */
+
+    public Material setKd(Double3 kD) { return setKD(kD); }
+    public Material setKd(double kD) { return setKD(kD); }
+
+    public Material setKs(Double3 kS) { return setKS(kS); }
+    public Material setKs(double kS) { return setKS(kS); }
+
+    public Material setKt(Double3 kT) { return setKT(kT); }
+    public Material setKt(double kT) { return setKT(kT); }
+
+    public Material setKr(Double3 kR) { return setKR(kR); }
+    public Material setKr(double kR) { return setKR(kR); }
+    public Material setKa(Double3 kA) { return this; }
+    public Material setKa(double kA) { return this; }
 }

@@ -12,10 +12,17 @@ import java.io.File;
 
 /**
  * SceneLoader class responsible for external scene data parsing.
- * Updated for Stage 7 bonus maintenance to support Material, Emission, and External Lights.
+ * Updated for Stage 8 to support Material properties (including kT and kR), Emission, and External Lights.
  */
 public class SceneLoader {
 
+    /**
+     * Loads a 3D scene directly from an XML file.
+     *
+     * @param filePath  The path to the XML file.
+     * @param sceneName The name of the scene to create.
+     * @return The fully constructed Scene object.
+     */
     public static Scene loadSceneFromXML(String filePath, String sceneName) {
         Scene scene = new Scene(sceneName);
 
@@ -39,6 +46,7 @@ public class SceneLoader {
                 Element ambientElement = (Element) ambientNodes.item(0);
                 if (ambientElement.hasAttribute("color")) {
                     Color color = parseColor(ambientElement.getAttribute("color"));
+                    // Ambient light attenuation factor (k)
                     double ka = ambientElement.hasAttribute("ka") ? Double.parseDouble(ambientElement.getAttribute("ka")) : 1.0;
                     scene.setAmbientLight(new AmbientLight(color.scale(ka)));
                 }
@@ -50,7 +58,7 @@ public class SceneLoader {
                 parseGeometries(scene.geometries, (Element) geometriesNodes.item(0));
             }
 
-            // 4. Lights (Stage 7 Bonus)
+            // 4. Lights
             NodeList lightsNodes = doc.getElementsByTagName("lights");
             if (lightsNodes.getLength() > 0) {
                 parseLights(scene, (Element) lightsNodes.item(0));
@@ -63,6 +71,9 @@ public class SceneLoader {
         return scene;
     }
 
+    /**
+     * Parses the geometries section of the XML and adds them to the scene structure.
+     */
     private static void parseGeometries(Geometries geometries, Element container) {
         NodeList children = container.getChildNodes();
         for (int i = 0; i < children.getLength(); i++) {
@@ -83,6 +94,9 @@ public class SceneLoader {
         }
     }
 
+    /**
+     * Parses the lights section of the XML and adds them to the scene structure.
+     */
     private static void parseLights(Scene scene, Element container) {
         NodeList children = container.getChildNodes();
         for (int i = 0; i < children.getLength(); i++) {
@@ -113,12 +127,18 @@ public class SceneLoader {
         }
     }
 
+    /**
+     * Applies distance attenuation factors to point/spot lights.
+     */
     private static void applyAttenuation(Element el, PointLight pl) {
         if (el.hasAttribute("kC")) pl.setKc(Double.parseDouble(el.getAttribute("kC")));
         if (el.hasAttribute("kL")) pl.setKl(Double.parseDouble(el.getAttribute("kL")));
         if (el.hasAttribute("kQ")) pl.setKq(Double.parseDouble(el.getAttribute("kQ")));
     }
 
+    /**
+     * Applies material and emission properties to a geometry, including Stage 8 transparency/reflection factors.
+     */
     private static void applyStage6Properties(Element el, Geometry geo) {
         if (el.hasAttribute("emission")) {
             geo.setEmission(parseColor(el.getAttribute("emission")));
@@ -129,20 +149,33 @@ public class SceneLoader {
         double ks = el.hasAttribute("ks") ? Double.parseDouble(el.getAttribute("ks")) : 0.5;
         int shininess = el.hasAttribute("nShininess") ? (int) Double.parseDouble(el.getAttribute("nShininess")) : 30;
 
-        mat.setKd(kd).setKs(ks).setShininess(shininess);
+        // Stage 8 properties: Transparency and Reflection
+        double kt = el.hasAttribute("kT") ? Double.parseDouble(el.getAttribute("kT")) : 0.0;
+        double kr = el.hasAttribute("kR") ? Double.parseDouble(el.getAttribute("kR")) : 0.0;
+
+        mat.setKD(kd).setKS(ks).setShininess(shininess).setKT(kt).setKR(kr);
         geo.setMaterial(mat);
     }
 
+    /**
+     * Helper to parse a "R G B" string into a Color object.
+     */
     private static Color parseColor(String str) {
         String[] rgb = str.trim().split("\\s+");
         return new Color(Double.parseDouble(rgb[0]), Double.parseDouble(rgb[1]), Double.parseDouble(rgb[2]));
     }
 
+    /**
+     * Helper to parse an "X Y Z" string into a Point object.
+     */
     private static Point parsePoint(String str) {
         String[] xyz = str.trim().split("\\s+");
         return new Point(Double.parseDouble(xyz[0]), Double.parseDouble(xyz[1]), Double.parseDouble(xyz[2]));
     }
 
+    /**
+     * Helper to parse an "X Y Z" string into a Vector object.
+     */
     private static Vector parseVector(String str) {
         String[] xyz = str.trim().split("\\s+");
         return new Vector(Double.parseDouble(xyz[0]), Double.parseDouble(xyz[1]), Double.parseDouble(xyz[2]));

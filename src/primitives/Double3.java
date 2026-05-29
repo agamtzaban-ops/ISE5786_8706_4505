@@ -1,15 +1,10 @@
-/**
- *
- */
 package primitives;
 
 import java.util.Objects;
-
 import static primitives.Util.isZero;
 
 /**
  * Immutable container for three double values.
-
  * The class is used as a basic numeric structure in the primitives package.
  * Typical uses include:
  * <ul>
@@ -17,15 +12,15 @@ import static primitives.Util.isZero;
  * <li>Point or vector coordinates</li>
  * <li>Material or attenuation coefficients</li>
  * </ul>
-
  * This class is intentionally minimal and optimized for performance,
  * as it is heavily used in geometric and color computations. It performs no
  * argument validation (such as {@code null} checks or division-by-zero checks).
  * It assumes correct usage by the calling code.
+ *
  * @param  _d1 first component
  * @param  _d2 second component
  * @param  _d3 third component
- * @author     Dan Zilberstein
+ * @author Dan Zilberstein
  */
 public record Double3(double _d1, double _d2, double _d3) {
 
@@ -36,7 +31,8 @@ public record Double3(double _d1, double _d2, double _d3) {
     public static final Double3 ONE = new Double3(1, 1, 1);
 
     /**
-     * Constructor to initialize Double3 based object the same number values
+     * Constructor to initialize Double3 based object the same number values.
+     *
      * @param value number value for all 3 numbers
      */
     public Double3(double value) {
@@ -64,6 +60,7 @@ public record Double3(double _d1, double _d2, double _d3) {
 
     /**
      * Adds this triad to another triad component-wise.
+     *
      * @param  rhs the triad to add
      * @return     a new {@code Double3} containing the component-wise sum
      */
@@ -73,6 +70,7 @@ public record Double3(double _d1, double _d2, double _d3) {
 
     /**
      * Subtracts another triad from this triad component-wise.
+     *
      * @param  rhs the triad to subtract
      * @return     a new {@code Double3} containing the component-wise difference
      */
@@ -82,6 +80,7 @@ public record Double3(double _d1, double _d2, double _d3) {
 
     /**
      * Multiplies all components of this triad by a scalar value.
+     *
      * @param  rhs the scaling factor
      * @return     a new {@code Double3} containing the scaled values
      */
@@ -91,6 +90,7 @@ public record Double3(double _d1, double _d2, double _d3) {
 
     /**
      * Divides all components of this triad by a scalar value.
+     *
      * @param  rhs the divisor
      * @return     a new {@code Double3} containing the reduced values
      */
@@ -100,6 +100,7 @@ public record Double3(double _d1, double _d2, double _d3) {
 
     /**
      * Multiplies this triad with another triad component-wise.
+     *
      * @param  rhs the triad to multiply with
      * @return     a new {@code Double3} containing the component-wise product
      */
@@ -108,7 +109,8 @@ public record Double3(double _d1, double _d2, double _d3) {
     }
 
     /**
-     * Checks whether all components are smaller than a given value.
+     * Checks whether all components are strictly smaller than a given value.
+     *
      * @param  k the value to compare against
      * @return   {@code true} if all components are smaller than {@code k}
      */
@@ -117,13 +119,25 @@ public record Double3(double _d1, double _d2, double _d3) {
     }
 
     /**
-     * Checks whether all components of this triad are smaller than the
+     * Checks whether all components of this triad are strictly smaller than the
      * corresponding components of another triad.
+     *
      * @param  other the triad to compare with
      * @return       {@code true} if each component of this triad is smaller than
-     *               the corresponding component in {@code other}
+     * the corresponding component in {@code other}
      */
     public boolean isLowerThan(Double3 other) {
         return _d1 < other._d1 && _d2 < other._d2 && _d3 < other._d3;
+    }
+
+    /**
+     * Checks if at least one coordinate is greater than or equal to a given value.
+     * Logically equivalent to the negation of isLowerThan using De Morgan's laws.
+     *
+     * @param k The value to compare against.
+     * @return true if any coordinate is greater than or equal to k, false otherwise.
+     */
+    public boolean isGreaterThan(double k) {
+        return _d1 >= k || _d2 >= k || _d3 >= k;
     }
 }

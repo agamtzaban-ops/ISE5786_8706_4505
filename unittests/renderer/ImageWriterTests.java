@@ -3,6 +3,8 @@ package renderer;
 import org.junit.jupiter.api.Test;
 import primitives.Color;
 
+import static java.awt.Color.*;
+
 /**
  * Unit test for ImageWriter class.
  */
@@ -18,8 +20,8 @@ class ImageWriterTests {
         final int nY = 500;
         final int step = 50;
 
-        final Color background = new Color(0, 100, 200); // Blue
-        final Color gridColor = new Color(255, 255, 0);  // Yellow
+        final Color background = new Color(CYAN); // Blue
+        final Color gridColor = new Color(YELLOW);  // Yellow
 
         // 1. Create the ImageWriter object with only resolution
         ImageWriter imageWriter = new ImageWriter(nX, nY);
