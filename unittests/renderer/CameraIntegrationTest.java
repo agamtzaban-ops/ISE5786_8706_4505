@@ -1,6 +1,7 @@
 package renderer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 import geometries.api.Intersectable;
 import geometries.impl.Plane;
@@ -144,5 +145,91 @@ class CameraIntegrationTest {
         assertCountIntersections(camera,
                 new Triangle(new Point(1, 1, -2), new Point(-1, 1, -2), new Point(0, -20, -2)), 2,
                 "TC02: Tall triangle");
+    }
+    /**
+     * Tests for calcIntersections with maxDistance parameter (Bonus 3).
+     * For a sphere intersected twice (t1 and t2), we test 6 cases based on
+     * where the maxDistance cutoff (Q point) falls relative to the intersections.
+     */
+    @Test
+    void testSphereMaxDistance() {
+        // Sphere centered at (0,0,-3) with radius 1
+        // Ray from (0,0,0) toward (0,0,-1)
+        // t1 = 2 (front intersection), t2 = 4 (back intersection)
+        Sphere sphere = new Sphere(new Point(0, 0, -3), 1d);
+        Ray ray = new Ray(new Point(0, 0, 0), new Vector(0, 0, -1));
+
+        // TC01: Q1 beyond both intersections (maxDistance=5) → 2 results
+        assertEquals(2, sphere.calcIntersections(ray, 5).size(),
+                "TC01: maxDistance beyond both intersections");
+
+        // TC02: Q2 between the two intersections (maxDistance=3) → 1 result
+        assertEquals(1, sphere.calcIntersections(ray, 3).size(),
+                "TC02: maxDistance between intersections");
+
+        // TC03: Q3 before both intersections (maxDistance=1) → 0 results
+        assertNull(sphere.calcIntersections(ray, 1),
+                "TC03: maxDistance before both intersections");
+
+        // TC04: Q4 exactly on the second intersection (maxDistance=4) → 2 results
+        assertEquals(2, sphere.calcIntersections(ray, 4).size(),
+                "TC04: maxDistance exactly on second intersection");
+
+        // TC05: Q5 exactly on the first intersection (maxDistance=2) → 1 result
+        assertEquals(1, sphere.calcIntersections(ray, 2).size(),
+                "TC05: maxDistance exactly on first intersection");
+
+        // TC06: Q6 just before the first intersection (maxDistance=1.9) → 0 results
+        assertNull(sphere.calcIntersections(ray, 1.9),
+                "TC06: maxDistance just before first intersection");
+    }
+
+    /**
+     * Tests for calcIntersections with maxDistance for Plane (Bonus 3).
+     */
+    @Test
+    void testPlaneMaxDistance() {
+        // Plane at z=-5, ray from origin toward -z
+        // Intersection at t=5
+        Plane plane = new Plane(new Point(0, 0, -5), new Vector(0, 0, 1));
+        Ray ray = new Ray(new Point(0, 0, 0), new Vector(0, 0, -1));
+
+        // TC01: maxDistance beyond intersection (maxDistance=6) → 1 result
+        assertEquals(1, plane.calcIntersections(ray, 6).size(),
+                "TC01: maxDistance beyond plane intersection");
+
+        // TC02: maxDistance exactly on intersection (maxDistance=5) → 1 result
+        assertEquals(1, plane.calcIntersections(ray, 5).size(),
+                "TC02: maxDistance exactly on plane intersection");
+
+        // TC03: maxDistance before intersection (maxDistance=4) → 0 results
+        assertNull(plane.calcIntersections(ray, 4),
+                "TC03: maxDistance before plane intersection");
+    }
+
+    /**
+     * Tests for calcIntersections with maxDistance for Triangle (Bonus 3).
+     */
+    @Test
+    void testTriangleMaxDistance() {
+        // Triangle at z=-2, ray from origin toward -z through center
+        // Intersection at t=2
+        Triangle triangle = new Triangle(
+                new Point( 1,  1, -2),
+                new Point(-1,  1, -2),
+                new Point( 0, -1, -2));
+        Ray ray = new Ray(new Point(0, 0, 0), new Vector(0, 0, -1));
+
+        // TC01: maxDistance beyond intersection (maxDistance=3) → 1 result
+        assertEquals(1, triangle.calcIntersections(ray, 3).size(),
+                "TC01: maxDistance beyond triangle intersection");
+
+        // TC02: maxDistance exactly on intersection (maxDistance=2) → 1 result
+        assertEquals(1, triangle.calcIntersections(ray, 2).size(),
+                "TC02: maxDistance exactly on triangle intersection");
+
+        // TC03: maxDistance before intersection (maxDistance=1) → 0 results
+        assertNull(triangle.calcIntersections(ray, 1),
+                "TC03: maxDistance before triangle intersection");
     }
 }
