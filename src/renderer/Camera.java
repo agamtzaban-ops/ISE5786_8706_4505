@@ -2,96 +2,313 @@ package renderer;
 
 import primitives.*;
 import scene.Scene;
+
+import java.util.List;
 import java.util.MissingResourceException;
 
 import static primitives.Util.isZero;
 
 /**
- * Camera class representing the view point of the scene.
- * Implemented according to Stage 5 instructions with Builder pattern.
+ * Represents the virtual camera in a ray-tracing renderer.
+ *
+ * <p>The camera defines the viewpoint, orientation, and view-plane geometry used to
+ * construct rays into the scene. It supports super-sampling (Anti-Aliasing) via a
+ * {@link Blackboard}-based beam infrastructure, and multi-threading via
+ * {@link PixelManager}.</p>
+ *
+ * <p>Constructed exclusively via the nested {@link Builder} class (Builder pattern).</p>
+ *
+ * <h3>Usage example:</h3>
+ * <pre>{@code
+ * Camera camera = Camera.getBuilder()
+ *     .setLocation(new Point(0, 0, 1000))
+ *     .setDirection(new Vector(0, 0, -1), new Vector(0, 1, 0))
+ *     .setVpSize(150, 150)
+ *     .setVpDistance(1000)
+ *     .setResolution(800, 800)
+ *     .setAntiAliasingSamples(9)
+ *     .setRayTracer(scene, RayTracerType.SIMPLE)
+ *     .build();
+ *
+ * camera.renderImage().writeToImage();
+ * }</pre>
  */
 public class Camera implements Cloneable {
-    // Camera location and directions
+
+    // ========================= Camera Geometry =========================
+
+    /** The camera's position in 3D space. */
     private Point _p0;
+
+    /** The forward direction vector (toward the scene). */
     private Vector _vTo;
+
+    /** The upward direction vector. */
     private Vector _vUp;
+
+    /** The rightward direction vector (derived from vTo × vUp). */
     private Vector _vRight;
 
-    // View plane geometry
+    // ========================= View Plane =========================
+
+    /** Width of the view plane. */
     private double _width;
+
+    /** Height of the view plane. */
     private double _height;
+
+    /** Distance from the camera to the view plane. */
     private double _distance;
 
-    // View plane resolution
+    // ========================= Resolution =========================
+
+    /** Number of pixels along the X axis. */
     private int _nX = 1;
+
+    /** Number of pixels along the Y axis. */
     private int _nY = 1;
 
-    // Computed helper fields
+    // ========================= Derived / Cached =========================
+
+    /** The center point of the view plane. Pre-computed at build time. */
     private Point _vpCenter;
+
+    /** Width of a single pixel. Pre-computed at build time. */
     private double _pixelWidth;
+
+    /** Height of a single pixel. Pre-computed at build time. */
     private double _pixelHeight;
 
-    // Rendering infrastructure fields
+    // ========================= Rendering Infrastructure =========================
+
+    /** The image writer used to write pixel colors to the output image. */
     private ImageWriter _imageWriter;
+
+    /** The ray tracer used to compute the color for each ray. */
     private RayTracerBase _rayTracer;
+
+    /** Default output file name for the rendered image. */
     private String _imageName = "default";
 
-    /** Private default constructor for Builder */
+    // ========================= Multi-threading =========================
+
+    /**
+     * Number of threads to use for rendering.
+     * <ul>
+     *   <li>0  – single-threaded (default)</li>
+     *   <li>-1 – parallel stream (implicit multi-threading)</li>
+     *   <li>-2 – number of logical processors minus {@value #SPARE_THREADS}</li>
+     *   <li>&gt;0 – explicit thread count</li>
+     * </ul>
+     */
+    private int _threadsCount = 0;
+
+    /**
+     * Number of threads to spare for the JVM when using auto thread-count (-2).
+     * Prevents thread starvation of JVM internal threads.
+     */
+    private static final int SPARE_THREADS = 2;
+
+    /**
+     * Progress print interval in percent (0 = disabled).
+     * Controls how often the rendering progress is printed to the console.
+     */
+    private double _printInterval = 0;
+
+    /** Pixel manager for synchronized pixel selection and progress reporting. */
+    private PixelManager _pixelManager;
+
+    // ========================= Super-Sampling =========================
+
+    /**
+     * Number of samples per row/column in the Anti-Aliasing grid.
+     * <ul>
+     *   <li>1 – super-sampling disabled (single ray per pixel)</li>
+     *   <li>n – n×n grid of rays per pixel</li>
+     * </ul>
+     */
+    private int _antiAliasingSamples = 1;
+
+    // ========================= Constructor =========================
+
+    /** Private constructor — use {@link #getBuilder()} instead. */
     private Camera() {}
 
     /**
-     * Static factory method for Builder
-     * @return a new Builder object
+     * Returns a new {@link Builder} for constructing a {@code Camera} instance.
+     *
+     * @return a fresh {@link Builder}
      */
     public static Builder getBuilder() {
         return new Builder();
     }
 
-    // --- Rendering Operations ---
+    // ========================= Rendering =========================
 
     /**
-     * Renders the image by iterating over all pixels.
-     * @return the camera itself
+     * Renders the full image by iterating over all pixels and casting rays.
+     * Delegates to the appropriate rendering strategy based on the thread count.
+     *
+     * @return this camera (for method chaining)
+     * @throws MissingResourceException if the image writer or ray tracer is not set
      */
     public Camera renderImage() {
-        for (int i = 0; i < _nY; i++) {
-            for (int j = 0; j < _nX; j++) {
+        _pixelManager = new PixelManager(_nY, _nX, _printInterval);
+        return switch (_threadsCount) {
+            case 0  -> renderImageNoThreads();
+            case -1 -> renderImageStream();
+            default -> renderImageRawThreads();
+        };
+    }
+
+    /**
+     * Renders the image using a single thread.
+     *
+     * @return this camera
+     */
+    private Camera renderImageNoThreads() {
+        for (int i = 0; i < _nY; i++)
+            for (int j = 0; j < _nX; j++)
                 castRay(j, i);
-            }
-        }
         return this;
     }
 
     /**
-     * Helper method to cast a ray and write the pixel color.
-     * @param j column index
-     * @param i row index
+     * Renders the image using Java parallel streams (implicit multi-threading).
+     * May cause memory issues at very high resolutions.
+     *
+     * @return this camera
+     */
+    private Camera renderImageStream() {
+        java.util.stream.IntStream.range(0, _nY).parallel()
+                .forEach(i -> java.util.stream.IntStream.range(0, _nX).parallel()
+                        .forEach(j -> castRay(j, i)));
+        return this;
+    }
+
+    /**
+     * Renders the image using raw Java threads.
+     * Each thread picks the next available pixel from {@link PixelManager}
+     * until all pixels are processed.
+     *
+     * @return this camera
+     */
+    private Camera renderImageRawThreads() {
+        var threads = new java.util.LinkedList<Thread>();
+        int count = _threadsCount;
+        while (count-- > 0)
+            threads.add(new Thread(() -> {
+                PixelManager.Pixel pixel;
+                while ((pixel = _pixelManager.nextPixel()) != null)
+                    castRay(pixel.col(), pixel.row());
+            }));
+        for (var thread : threads) thread.start();
+        try {
+            for (var thread : threads) thread.join();
+        } catch (InterruptedException ignored) {}
+        return this;
+    }
+
+    /**
+     * Casts a ray (or beam of rays) through pixel (j, i) and writes the resulting color.
+     *
+     * <p>When Anti-Aliasing is disabled ({@code _antiAliasingSamples == 1}), a single ray
+     * is cast through the pixel center. When enabled, a beam of rays is generated via
+     * {@link Blackboard} and their colors are averaged.</p>
+     *
+     * <p>Rays with no contribution are still included in the average count
+     * (as required by the super-sampling model).</p>
+     *
+     * @param j column index of the pixel
+     * @param i row index of the pixel
      */
     private void castRay(int j, int i) {
-        Ray ray = constructRay(j, i);
-        Color pixelColor = _rayTracer.traceRay(ray);
+        Point pixelCenter = getPixelCenter(j, i);
+
+        // Build the target-area sample points using the Blackboard infrastructure.
+        // When _antiAliasingSamples == 1 or size == 0, Blackboard returns only the center point,
+        // which is equivalent to standard single-ray rendering.
+        List<Point> samplePoints = new Blackboard()
+                .setCenter(pixelCenter)
+                .setSize(_pixelWidth)
+                .setVRight(_vRight)
+                .setVUp(_vUp)
+                .setNumSamples(_antiAliasingSamples)
+                .generatePoints();
+
+        // Trace a ray through each sample point and accumulate colors
+        Color accumulated = Color.BLACK;
+        for (Point p : samplePoints) {
+            Ray ray = new Ray(_p0, p.subtract(_p0));
+            accumulated = accumulated.add(_rayTracer.traceRay(ray));
+        }
+
+        // Average the accumulated color over all samples (including rays with no contribution)
+        Color pixelColor = accumulated.reduce(samplePoints.size());
         _imageWriter.writePixel(j, i, pixelColor);
+        _pixelManager.pixelDone();
+    }
+
+    // ========================= Ray Construction Helpers =========================
+
+    /**
+     * Computes the 3D center point of pixel (j, i) on the view plane.
+     *
+     * <p>The pixel center is calculated from the view-plane center by applying
+     * horizontal ({@code _vRight}) and vertical ({@code _vUp}) offsets.</p>
+     *
+     * @param j column index (0-based, left to right)
+     * @param i row index    (0-based, top to bottom)
+     * @return the 3D center point of pixel (j, i)
+     */
+    private Point getPixelCenter(int j, int i) {
+        Point pIJ = _vpCenter;
+
+        double xJ = (j - (_nX - 1) / 2d) * _pixelWidth;
+        double yI = -(i - (_nY - 1) / 2d) * _pixelHeight;
+
+        if (!isZero(xJ)) pIJ = pIJ.add(_vRight.scale(xJ));
+        if (!isZero(yI)) pIJ = pIJ.add(_vUp.scale(yI));
+
+        return pIJ;
     }
 
     /**
-     * Prints a grid onto the image.
-     * @param interval gap between grid lines
-     * @param color grid line color
-     * @return the camera itself
+     * Constructs a single ray from the camera through the center of pixel (j, i).
+     *
+     * <p>This method is retained for compatibility with tests that construct
+     * rays directly (e.g., unit tests for ray construction geometry).</p>
+     *
+     * @param j column index
+     * @param i row index
+     * @return the ray from {@code _p0} through the center of pixel (j, i)
+     */
+    public Ray constructRay(int j, int i) {
+        return new Ray(_p0, getPixelCenter(j, i).subtract(_p0));
+    }
+
+    // ========================= Image Output =========================
+
+    /**
+     * Paints a debug grid onto the image using the specified interval and color.
+     * Grid lines are drawn at every {@code interval}-th row and column.
+     *
+     * @param interval pixel gap between grid lines
+     * @param color    color of the grid lines
+     * @return this camera (for method chaining)
      */
     public Camera printGrid(int interval, Color color) {
-        for (int i = 0; i < _nY; i++) {
-            for (int j = 0; j < _nX; j++) {
-                if (i % interval == 0 || j % interval == 0) {
+        for (int i = 0; i < _nY; i++)
+            for (int j = 0; j < _nX; j++)
+                if (i % interval == 0 || j % interval == 0)
                     _imageWriter.writePixel(j, i, color);
-                }
-            }
-        }
         return this;
     }
 
     /**
-     * Writes the image to a file using the internal image name.
+     * Writes the rendered image to a file using the camera's default image name.
+     *
+     * @throws MissingResourceException if the image writer has not been initialized
      */
     public void writeToImage() {
         if (_imageWriter == null)
@@ -100,8 +317,11 @@ public class Camera implements Cloneable {
     }
 
     /**
-     * Writes the image to a file with a specific name (To support legacy tests).
-     * @param fileName the name of the file
+     * Writes the rendered image to a file with the given name.
+     * Provided for compatibility with legacy tests that pass an explicit file name.
+     *
+     * @param fileName the output file name (without extension)
+     * @throws MissingResourceException if the image writer has not been initialized
      */
     public void writeToImage(String fileName) {
         if (_imageWriter == null)
@@ -109,162 +329,326 @@ public class Camera implements Cloneable {
         _imageWriter.writeToImage(fileName);
     }
 
-    /**
-     * Constructs a ray through the center of a given pixel.
-     * @param j column index
-     * @param i row index
-     * @return the ray from camera through pixel (j,i)
-     */
-    public Ray constructRay(int j, int i) {
-        Point pIJ = _vpCenter;
-        double xJ = (j - (_nX - 1) / 2d) * _pixelWidth;
-        double yI = -(i - (_nY - 1) / 2d) * _pixelHeight;
-
-        if (!isZero(xJ)) {
-            pIJ = pIJ.add(_vRight.scale(xJ));
-        }
-        if (!isZero(yI)) {
-            pIJ = pIJ.add(_vUp.scale(yI));
-        }
-
-        return new Ray(_p0, pIJ.subtract(_p0));
-    }
+    // ========================= Cloneable =========================
 
     @Override
     public Object clone() throws CloneNotSupportedException {
         return super.clone();
     }
 
-    // --- Inner Builder Class ---
+    // ========================= Builder =========================
 
+    /**
+     * Fluent builder for constructing a {@link Camera} instance.
+     *
+     * <p>All mandatory parameters must be set before calling {@link #build()}.
+     * Optional parameters (e.g., anti-aliasing, multi-threading) have sensible defaults.</p>
+     */
     public static class Builder {
+
+        /** The camera under construction. */
         private final Camera _camera = new Camera();
-        private Vector _to, _up;
+
+        /** Explicit direction vector (alternative to target point). */
+        private Vector _to;
+
+        /** Up vector supplied by the caller. */
+        private Vector _up;
+
+        /** Optional target point — used to derive {@code vTo}. */
         private Point _target;
+
+        /** Optional rotation angle (degrees) around the {@code vTo} axis. */
         private double _rotationAngle = 0;
 
+        // -------- Location & Orientation --------
+
+        /**
+         * Sets the camera's position in world space.
+         *
+         * @param location the camera origin point
+         * @return this builder
+         */
         public Builder setLocation(Point location) {
             _camera._p0 = location;
             return this;
         }
 
+        /**
+         * Sets the camera's orientation using an explicit forward and up vector.
+         *
+         * @param to  the forward direction (need not be normalized)
+         * @param up  the upward direction (need not be normalized)
+         * @return this builder
+         */
         public Builder setDirection(Vector to, Vector up) {
-            this._to = to;
-            this._up = up;
+            _to = to;
+            _up = up;
             return this;
         }
 
+        /**
+         * Sets the camera's orientation by pointing at a target point, with a given up vector.
+         *
+         * @param target the point the camera looks at
+         * @param up     the upward direction
+         * @return this builder
+         */
         public Builder setDirection(Point target, Vector up) {
-            this._target = target;
-            this._up = up;
+            _target = target;
+            _up = up;
             return this;
         }
 
+        /**
+         * Sets the camera's orientation by pointing at a target point.
+         * The up vector defaults to {@code (0, 1, 0)}.
+         *
+         * @param target the point the camera looks at
+         * @return this builder
+         */
         public Builder setDirection(Point target) {
-            this._target = target;
-            this._up = new Vector(0, 1, 0);
+            _target = target;
+            _up = new Vector(0, 1, 0);
             return this;
         }
 
+        // -------- View Plane --------
+
+        /**
+         * Sets the physical size of the view plane.
+         *
+         * @param width  view-plane width  (must be positive)
+         * @param height view-plane height (must be positive)
+         * @return this builder
+         */
         public Builder setVpSize(double width, double height) {
-            _camera._width = width;
+            _camera._width  = width;
             _camera._height = height;
             return this;
         }
 
+        /**
+         * Sets the distance from the camera to the view plane.
+         *
+         * @param distance distance (must be positive)
+         * @return this builder
+         */
         public Builder setVpDistance(double distance) {
             _camera._distance = distance;
             return this;
         }
 
+        // -------- Resolution --------
+
+        /**
+         * Sets the output image resolution in pixels.
+         *
+         * @param nX number of columns (must be positive)
+         * @param nY number of rows    (must be positive)
+         * @return this builder
+         */
         public Builder setResolution(int nX, int nY) {
             _camera._nX = nX;
             _camera._nY = nY;
             return this;
         }
 
+        // -------- Output --------
+
+        /**
+         * Sets the default output file name for the rendered image.
+         *
+         * @param name file name (without extension)
+         * @return this builder
+         */
         public Builder setImageName(String name) {
             _camera._imageName = name;
             return this;
         }
 
-        public Builder rotate(double angle) {
-            this._rotationAngle = angle;
-            return this;
-        }
+        // -------- Ray Tracer --------
 
+        /**
+         * Sets the ray tracer by providing a pre-constructed instance.
+         *
+         * @param scene     the scene (unused here, kept for API symmetry)
+         * @param rayTracer the ray tracer instance
+         * @return this builder
+         */
         public Builder setRayTracer(Scene scene, RayTracerBase rayTracer) {
             _camera._rayTracer = rayTracer;
             return this;
         }
 
+        /**
+         * Sets the ray tracer by type.
+         *
+         * @param scene the scene to render
+         * @param type  the ray tracer type (e.g., {@link RayTracerType#SIMPLE})
+         * @return this builder
+         * @throws IllegalArgumentException if the type is unknown
+         */
         public Builder setRayTracer(Scene scene, RayTracerType type) {
-            if (type == RayTracerType.SIMPLE) {
+            if (type == RayTracerType.SIMPLE)
                 _camera._rayTracer = new SimpleRayTracer(scene);
+            else
+                throw new IllegalArgumentException("Unknown RayTracerType: " + type);
+            return this;
+        }
+
+        // -------- Anti-Aliasing --------
+
+        /**
+         * Sets the number of samples per dimension for Anti-Aliasing (super-sampling).
+         *
+         * <p>The total number of rays cast per pixel will be {@code samples × samples}.
+         * Set to 1 (the default) to disable Anti-Aliasing.</p>
+         *
+         * <ul>
+         *   <li>1  – disabled (single ray per pixel)</li>
+         *   <li>3  – 3×3 = 9 rays (debug quality)</li>
+         *   <li>9  – 9×9 = 81 rays (demo quality)</li>
+         *   <li>17 – 17×17 ≈ 289 rays (production quality)</li>
+         * </ul>
+         *
+         * @param samples number of samples per row/column (must be ≥ 1)
+         * @return this builder
+         * @throws IllegalArgumentException if {@code samples < 1}
+         */
+        public Builder setAntiAliasingSamples(int samples) {
+            if (samples < 1)
+                throw new IllegalArgumentException("Anti-aliasing samples must be at least 1");
+            _camera._antiAliasingSamples = samples;
+            return this;
+        }
+
+        // -------- Multi-threading --------
+
+        /**
+         * Sets the number of threads to use for rendering.
+         *
+         * <ul>
+         *   <li>0  – single-threaded (default)</li>
+         *   <li>-1 – parallel stream (implicit multi-threading)</li>
+         *   <li>-2 – logical processors minus {@value Camera#SPARE_THREADS} spare threads</li>
+         *   <li>&gt;0 – explicit thread count</li>
+         * </ul>
+         *
+         * @param threads thread count (must be ≥ -2)
+         * @return this builder
+         * @throws IllegalArgumentException if {@code threads < -2}
+         */
+        public Builder setMultithreading(int threads) {
+            if (threads < -2)
+                throw new IllegalArgumentException("Multithreading parameter must be -2 or higher");
+            if (threads == -2) {
+                int cores = Runtime.getRuntime().availableProcessors() - SPARE_THREADS;
+                _camera._threadsCount = Math.max(1, cores);
             } else {
-                throw new IllegalArgumentException("Unknown RayTracerType");
+                _camera._threadsCount = threads;
             }
             return this;
         }
 
+        /**
+         * Sets the progress print interval as a percentage.
+         * Set to 0 (the default) to disable progress printing.
+         *
+         * @param interval printing interval in percent (0 = disabled)
+         * @return this builder
+         * @throws IllegalArgumentException if {@code interval < 0}
+         */
+        public Builder setDebugPrint(double interval) {
+            if (interval < 0)
+                throw new IllegalArgumentException("Interval must be non-negative");
+            _camera._printInterval = interval;
+            return this;
+        }
+
+        // -------- Optional: Camera Rotation --------
+
+        /**
+         * Rotates the camera around its forward ({@code vTo}) axis by the given angle.
+         *
+         * @param angle rotation angle in degrees
+         * @return this builder
+         */
+        public Builder rotate(double angle) {
+            _rotationAngle = angle;
+            return this;
+        }
+
+        // -------- Build --------
+
+        /**
+         * Validates all parameters and constructs the immutable {@link Camera} instance.
+         *
+         * @return the constructed camera
+         * @throws MissingResourceException  if mandatory parameters are missing
+         * @throws IllegalArgumentException  if any parameter value is invalid
+         */
         public Camera build() {
-            // Stage 5 RayTracer check
-            if (_camera._rayTracer == null) {
-                setRayTracer(new Scene("test"), RayTracerType.SIMPLE);
-            }
+            // Ray tracer — default to SimpleRayTracer if not set
+            if (_camera._rayTracer == null)
+                setRayTracer(new Scene("default"), RayTracerType.SIMPLE);
 
             // Resolution and ImageWriter
             if (_camera._nX <= 0 || _camera._nY <= 0)
                 throw new IllegalArgumentException("Resolution must be positive");
             _camera._imageWriter = new ImageWriter(_camera._nX, _camera._nY);
 
-            // Orientation setup
+            // Camera position and orientation
             if (_camera._p0 == null || _up == null)
-                throw new MissingResourceException("Missing camera params", "Camera", "build");
+                throw new MissingResourceException("Missing camera parameters", "Camera", "build");
 
-            if (_to != null) {
+            // Derive vTo from explicit vector or target point
+            if (_to != null)
                 _camera._vTo = _to.normalize();
-            } else if (_target != null) {
+            else if (_target != null)
                 _camera._vTo = _target.subtract(_camera._p0).normalize();
-            } else {
-                throw new MissingResourceException("Missing direction", "Camera", "Direction");
-            }
+            else
+                throw new MissingResourceException("Missing direction", "Camera", "vTo");
 
+            // Orthonormal basis: vRight = vTo × vUp, then re-derive vUp for orthogonality
             _camera._vRight = _camera._vTo.crossProduct(_up).normalize();
-            _camera._vUp = _camera._vRight.crossProduct(_camera._vTo).normalize();
+            _camera._vUp    = _camera._vRight.crossProduct(_camera._vTo).normalize();
 
-            // Bonus: Camera rotation around vTo with safety checks for Zero Vector
+            // Optional camera rotation around vTo
             if (!isZero(_rotationAngle)) {
-                double rad = Math.toRadians(_rotationAngle);
-                double cos = Util.alignZero(Math.cos(rad));
-                double sin = Util.alignZero(Math.sin(rad));
-                Vector vUpOrig = _camera._vUp;
+                double rad   = Math.toRadians(_rotationAngle);
+                double cos   = Util.alignZero(Math.cos(rad));
+                double sin   = Util.alignZero(Math.sin(rad));
+                Vector vUpOrig    = _camera._vUp;
                 Vector vRightOrig = _camera._vRight;
 
-                if (isZero(sin)) { // Rotation by 0 or 180 degrees
-                    _camera._vUp = vUpOrig.scale(cos);
+                if (isZero(sin)) {
+                    // 0° or 180° — scale only, no cross terms
+                    _camera._vUp    = vUpOrig.scale(cos);
                     _camera._vRight = vRightOrig.scale(cos);
-                } else if (isZero(cos)) { // Rotation by 90 or 270 degrees
-                    _camera._vUp = vRightOrig.scale(sin);
+                } else if (isZero(cos)) {
+                    // 90° or 270° — pure swap
+                    _camera._vUp    = vRightOrig.scale(sin);
                     _camera._vRight = vUpOrig.scale(-sin);
-                } else { // Combined rotation
-                    _camera._vUp = vUpOrig.scale(cos).add(vRightOrig.scale(sin)).normalize();
+                } else {
+                    // General rotation
+                    _camera._vUp    = vUpOrig.scale(cos).add(vRightOrig.scale(sin)).normalize();
                     _camera._vRight = vRightOrig.scale(cos).subtract(vUpOrig.scale(sin)).normalize();
                 }
             }
 
-            // View Plane dimensions
+            // View plane dimensions
             if (_camera._width <= 0 || _camera._height <= 0 || _camera._distance <= 0)
-                throw new IllegalArgumentException("VP dimensions must be positive");
+                throw new IllegalArgumentException("View-plane dimensions and distance must be positive");
 
-            _camera._vpCenter = _camera._p0.add(_camera._vTo.scale(_camera._distance));
-            _camera._pixelWidth = _camera._width / _camera._nX;
-            _camera._pixelHeight = _camera._height / _camera._nY;
+            _camera._vpCenter     = _camera._p0.add(_camera._vTo.scale(_camera._distance));
+            _camera._pixelWidth   = _camera._width  / _camera._nX;
+            _camera._pixelHeight  = _camera._height / _camera._nY;
 
             try {
                 return (Camera) _camera.clone();
             } catch (CloneNotSupportedException e) {
-                throw new RuntimeException("Build failed", e);
+                throw new RuntimeException("Camera build failed", e);
             }
         }
     }
