@@ -95,4 +95,31 @@ public class Point {
     public String toString() {
         return "" + _xyz;
     }
+
+    /**
+     * Gets the X coordinate of the point.
+     *
+     * @return the x coordinate value
+     */
+    public double getX() {
+        return _xyz._d1();
+    }
+
+    /**
+     * Gets the Y coordinate of the point.
+     *
+     * @return the y coordinate value
+     */
+    public double getY() {
+        return _xyz._d2();
+    }
+
+    /**
+     * Gets the Z coordinate of the point.
+     *
+     * @return the z coordinate value
+     */
+    public double getZ() {
+        return _xyz._d3();
+    }
 }

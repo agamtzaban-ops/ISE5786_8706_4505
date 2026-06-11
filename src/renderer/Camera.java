@@ -126,8 +126,23 @@ public class Camera implements Cloneable {
      *   <li>1 – super-sampling disabled (single ray per pixel)</li>
      *   <li>n – n×n grid of rays per pixel</li>
      * </ul>
+     * Default: 1 (disabled).
      */
     private int _antiAliasingSamples = 1;
+
+    /**
+     * Side length of the sampling target area within each pixel.
+     *
+     * <p>Controls how wide the beam of rays is spread inside the pixel.
+     * A value of 0 disables super-sampling regardless of {@code _antiAliasingSamples}.</p>
+     *
+     * <ul>
+     *   <li>-1 (default) – use the pixel's physical width automatically</li>
+     *   <li> 0           – super-sampling disabled (equivalent to 1 sample)</li>
+     *   <li>&gt;0        – explicit area size (in world units)</li>
+     * </ul>
+     */
+    private double _samplingAreaSize = -1;
 
     // ========================= Constructor =========================
 
@@ -225,26 +240,44 @@ public class Camera implements Cloneable {
     private void castRay(int j, int i) {
         Point pixelCenter = getPixelCenter(j, i);
 
+        // Resolve the sampling area size:
+        //   _samplingAreaSize == -1  → use the pixel's physical width (default behaviour)
+        //   _samplingAreaSize ==  0  → disabled; Blackboard will return only the center point
+        //   _samplingAreaSize  >  0  → caller-supplied explicit size
+        double areaSize = _samplingAreaSize < 0 ? _pixelWidth : _samplingAreaSize;
+
         // Build the target-area sample points using the Blackboard infrastructure.
-        // When _antiAliasingSamples == 1 or size == 0, Blackboard returns only the center point,
-        // which is equivalent to standard single-ray rendering.
+        // When _antiAliasingSamples == 1 or areaSize == 0, Blackboard returns only the
+        // center point — identical to standard single-ray rendering.
         List<Point> samplePoints = new Blackboard()
                 .setCenter(pixelCenter)
-                .setSize(_pixelWidth)
+                .setSize(areaSize)
                 .setVRight(_vRight)
                 .setVUp(_vUp)
                 .setNumSamples(_antiAliasingSamples)
                 .generatePoints();
 
-        // Trace a ray through each sample point and accumulate colors
+        // Trace a ray through each sample point and accumulate colors.
+        // A sample point that coincides exactly with the camera origin (_p0) would
+        // produce a zero-length direction vector — this can happen when the Grid
+        // pattern places a sample at the pixel center and the view distance is zero.
+        // Such samples are skipped; the average is computed over the rays that were
+        // actually traced to preserve correct color weighting.
         Color accumulated = Color.BLACK;
+        int   traced      = 0;
         for (Point p : samplePoints) {
-            Ray ray = new Ray(_p0, p.subtract(_p0));
-            accumulated = accumulated.add(_rayTracer.traceRay(ray));
+            try {
+                Ray ray = new Ray(_p0, p.subtract(_p0));
+                accumulated = accumulated.add(_rayTracer.traceRay(ray));
+                traced++;
+            } catch (IllegalArgumentException ignored) {
+                // p coincides with _p0 → zero vector → skip this sample
+            }
         }
 
-        // Average the accumulated color over all samples (including rays with no contribution)
-        Color pixelColor = accumulated.reduce(samplePoints.size());
+        // Divide by the number of rays actually traced (never zero: at minimum the
+        // central pixel-center ray always succeeds when the view distance is > 0).
+        Color pixelColor = accumulated.reduce(traced > 0 ? traced : 1);
         _imageWriter.writePixel(j, i, pixelColor);
         _pixelManager.pixelDone();
     }
@@ -520,6 +553,31 @@ public class Camera implements Cloneable {
             if (samples < 1)
                 throw new IllegalArgumentException("Anti-aliasing samples must be at least 1");
             _camera._antiAliasingSamples = samples;
+            return this;
+        }
+
+        /**
+         * Sets the side length of the sampling target area within each pixel.
+         *
+         * <p>This controls how wide the beam of rays spreads inside the pixel.
+         * Placing this parameter in the Camera Builder is correct by RDD: it describes
+         * <em>how the camera fires rays</em>, which is the camera's responsibility.</p>
+         *
+         * <ul>
+         *   <li>Omitting this call (default) → area equals the pixel's physical width</li>
+         *   <li>0 → disables super-sampling (beam collapses to a single central ray),
+         *       regardless of the sample count set via {@link #setAntiAliasingSamples}</li>
+         *   <li>&gt;0 → explicit world-unit size for the sampling window</li>
+         * </ul>
+         *
+         * @param size side length of the sampling area (must be ≥ 0)
+         * @return this builder
+         * @throws IllegalArgumentException if {@code size < 0}
+         */
+        public Builder setSamplingAreaSize(double size) {
+            if (size < 0)
+                throw new IllegalArgumentException("Sampling area size must be non-negative");
+            _camera._samplingAreaSize = size;
             return this;
         }
 

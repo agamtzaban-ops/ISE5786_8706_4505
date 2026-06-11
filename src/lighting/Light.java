@@ -3,29 +3,33 @@ package lighting;
 import primitives.Color;
 
 /**
- * Abstract class representing a light source.
- * It holds the original intensity of the light.
+ * Abstract base class representing a light source in the scene.
+ *
+ * <p>Holds the original intensity of the light. All concrete light types
+ * ({@link AmbientLight}, {@link DirectionalLight}, {@link PointLight}, etc.)
+ * extend this class.</p>
  */
 abstract class Light {
+
     /**
-     * The original intensity of the light source.
-     * Moved from AmbientLight, set to protected and final.
+     * The original color intensity of this light source.
+     * Set once at construction and never mutated.
      */
     protected final Color _intensity;
 
     /**
-     * Protected constructor to initialize the light intensity field.
+     * Initializes the light with the given intensity.
      *
-     * @param intensity The original color intensity of the light.
+     * @param intensity the color intensity of the light (must not be {@code null})
      */
     protected Light(Color intensity) {
         this._intensity = intensity;
     }
 
     /**
-     * Public getter for the light intensity.
+     * Returns the original color intensity of this light source.
      *
-     * @return The original color intensity.
+     * @return the light's color intensity
      */
     public Color getIntensity() {
         return _intensity;

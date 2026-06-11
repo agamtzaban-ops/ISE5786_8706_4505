@@ -54,26 +54,58 @@ public class Cylinder extends Tube {
     }
 
     @Override
-    protected List<Intersection> calcIntersectionsHelper(Ray ray,double maxDistance) {
+    protected List<Intersection> calcIntersectionsHelper(Ray ray, double maxDistance) {
         List<Intersection> result = new LinkedList<>();
 
-        // Step 1: Get intersections with the infinite tube
-        // Exceptional call to super's helper is required for finite logic in NVI
-        List<Intersection> tubeIntersections = super.calcIntersectionsHelper(ray,maxDistance);
+        Point p0 = _axis.origin();
+        Vector v  = _axis.direction();
 
-        // Step 2: Filter tube intersections by height boundaries
+        // Step 1: Curved side — filter tube intersections to the finite height band
+        List<Intersection> tubeIntersections = super.calcIntersectionsHelper(ray, maxDistance);
         if (tubeIntersections != null) {
-            Point p0 = _axis.origin();
-            Vector v = _axis.direction();
             for (Intersection intersection : tubeIntersections) {
                 double t = alignZero(v.dotProduct(intersection.p.subtract(p0)));
-                // Only keep points strictly within the cylinder's height
-                if (t > 0 && t < _height) {
+                if (t > 0 && t < _height)
                     result.add(intersection);
-                }
             }
         }
 
+        // Step 2: End caps — each cap is a disk lying in a plane with normal v.
+        // Ray P(s) = origin + s*dir hits the plane (P - center)·v = 0
+        // at s = (center - origin)·v / (dir·v).
+        double dv = ray.direction().dotProduct(v);
+        if (!isZero(dv)) {
+            checkCap(ray, maxDistance, p0,                    v, dv, result);
+            checkCap(ray, maxDistance, p0.add(v.scale(_height)), v, dv, result);
+        }
+
         return result.isEmpty() ? null : result;
+    }
+
+    /**
+     * Tests whether the ray hits the circular cap centered at {@code capCenter}
+     * (lying in the plane with normal {@code v}) and, if so, adds the
+     * intersection to {@code result}.
+     */
+    private void checkCap(Ray ray, double maxDistance, Point capCenter, Vector v,
+                          double dv, List<Intersection> result) {
+        double numer;
+        try {
+            numer = capCenter.subtract(ray.origin()).dotProduct(v);
+        } catch (IllegalArgumentException e) {
+            return; // ray origin coincides with cap center
+        }
+        double t = alignZero(numer / dv);
+        if (t <= 0 || alignZero(t - maxDistance) > 0) return;
+
+        Point p = ray.getPoint(t);
+        double distSq;
+        try {
+            distSq = p.subtract(capCenter).lengthSquared();
+        } catch (IllegalArgumentException e) {
+            distSq = 0; // hit exactly at cap center — within radius
+        }
+        if (alignZero(distSq - _radius * _radius) <= 0)
+            result.add(new Intersection(this, p));
     }
 }

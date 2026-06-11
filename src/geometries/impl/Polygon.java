@@ -138,4 +138,15 @@ public class Polygon extends Geometry {
         // Return the intersection point wrapped in an Intersection object linked to this Polygon
         return List.of(new Intersection(this, planeIntersections.get(0).p));
     }
+    /**
+     * Placeholder for texture mapping coordinates.
+     * Currently not implemented for this geometry.
+     *
+     * @param p the 3D point
+     * @return null temporarily
+     */
+    @Override
+    public double[] getUV(Point p) {
+        return null;
+    }
 }

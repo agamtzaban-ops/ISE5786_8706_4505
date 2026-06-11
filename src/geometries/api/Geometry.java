@@ -65,10 +65,39 @@ public abstract class Geometry extends Intersectable {
     }
 
     /**
+     * Marks this geometry as a light-source body (e.g. the Sun sphere).
+     * Shadow rays are not blocked by light-source geometries: the Sun should
+     * never cast a shadow on other objects in the scene.
+     */
+    private boolean _isLightSource = false;
+
+    /** Returns {@code true} if this geometry is a light-source body. */
+    public boolean isLightSource() { return _isLightSource; }
+
+    /**
+     * Marks this geometry as a light-source body so it is excluded from
+     * shadow-ray intersection tests.
+     *
+     * @return this geometry (for method chaining)
+     */
+    public Geometry setLightSource() {
+        _isLightSource = true;
+        return this;
+    }
+
+    /**
      * Calculates the normal vector to the geometry at a given point.
      *
      * @param point the point on the geometry surface
      * @return the normal vector at the given point
      */
     public abstract Vector getNormal(Point point);
+    /**
+     * Calculates the U and V coordinates for a given intersection point.
+     * This is used for 2D texture mapping on 3D geometries.
+     *
+     * @param p the 3D point on the geometry's surface
+     * @return a double array of size 2 containing [u, v], where 0.0 <= u, v <= 1.0
+     */
+    public abstract double[] getUV(Point p);
 }

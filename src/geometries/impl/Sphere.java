@@ -25,6 +25,36 @@ public final class Sphere extends RadialGeometry {
         super(radius);
         _center = center;
     }
+    /**
+     * Calculates the U and V texture coordinates for a point on the sphere.
+     * Uses spherical coordinates math to map the 3D point to a 2D texture space.
+     *
+     * @param p the 3D intersection point on the surface of the sphere
+     * @return a double array containing [u, v], where:
+     * u represents the horizontal axis (longitude) [0.0, 1.0]
+     * v represents the vertical axis (latitude) [0.0, 1.0]
+     */
+    @Override
+    public double[] getUV(Point p) {
+        // Calculate the vector from the center of the sphere to the point
+        Vector vToPoint = p.subtract(_center);
+
+        // Normalize the vector to a unit length
+        Vector normal = vToPoint.normalize();
+
+        // Extract X, Y, Z components from the normalized vector
+        double x = normal.getX();
+        double y = normal.getY();
+        double z = normal.getZ();
+
+        // Calculate U (horizontal / longitude) mapping to [0.0, 1.0]
+        double u = 0.5 + (Math.atan2(z, x) / (2 * Math.PI));
+
+        // Calculate V (vertical / latitude) mapping to [0.0, 1.0]
+        double v = 0.5 - (Math.asin(y) / Math.PI);
+
+        return new double[]{u, v};
+    }
 
     @Override
     public Vector getNormal(Point point) {
@@ -82,4 +112,5 @@ public final class Sphere extends RadialGeometry {
         }
         return null;
     }
+
 }

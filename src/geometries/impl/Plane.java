@@ -101,4 +101,15 @@ public final class Plane extends Geometry {
 
         return null;
     }
+    /**
+     * Placeholder for texture mapping coordinates.
+     * Currently not implemented for this geometry.
+     *
+     * @param p the 3D point
+     * @return null temporarily
+     */
+    @Override
+    public double[] getUV(Point p) {
+        return null;
+    }
 }
