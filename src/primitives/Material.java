@@ -1,5 +1,6 @@
 package primitives;
 
+
 /**
  * Material class for Phong Reflection Model.
  * Updated setter names to match the course's provided tests.
@@ -118,7 +119,11 @@ public class Material {
      * as the base color for the Phong diffuse term.
      * Leave null (default) to keep the original emission-based shading.
      */
-    public Texture texture = null;
+    public Texture texture;
+
+    {
+        texture = null;
+    }
 
     /**
      * Sets a diffuse texture map on this material.
