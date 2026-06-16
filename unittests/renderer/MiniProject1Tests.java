@@ -69,6 +69,12 @@ class MiniProject1Tests {
         String lower = filename.toLowerCase();
         if      (lower.contains("galaxy") || lower.contains("space"))
             primitives.TextureGenerator.generateGalaxy(absPath);
+        else if (lower.contains("sun"))
+            primitives.TextureGenerator.generateSun(absPath);
+        else if (lower.contains("mercury"))
+            primitives.TextureGenerator.generateMercury(absPath);
+        else if (lower.contains("venus"))
+            primitives.TextureGenerator.generateVenus(absPath);
         else if (lower.contains("saturn"))
             primitives.TextureGenerator.generateSaturn(absPath);
         else if (lower.contains("mars"))
@@ -77,6 +83,10 @@ class MiniProject1Tests {
             primitives.TextureGenerator.generateMoon(absPath);
         else if (lower.contains("jupiter"))
             primitives.TextureGenerator.generateJupiter(absPath);
+        else if (lower.contains("uranus"))
+            primitives.TextureGenerator.generateUranus(absPath);
+        else if (lower.contains("neptune"))
+            primitives.TextureGenerator.generateNeptune(absPath);
         else
             primitives.TextureGenerator.generateSaturn(absPath);
     }
@@ -129,7 +139,8 @@ class MiniProject1Tests {
                 .setMaterial(new Material().setKD(0.5).setKS(0.1).setShininess(10)
                         .setKT(0) // אטומה לגמרי
                         .setTexture(sunTex)
-                        .setEmissionTexture()));
+                        .setEmissionTexture())
+                .setLightSource());
 
         // ── כוכבי הלכת - קשת עוטפת התואמת לגובה השמש ורחבה יותר כדי שתיראה ב-ViewPort ───────
         final double ORBIT_RADIUS = 820D;
@@ -186,7 +197,7 @@ class MiniProject1Tests {
         // שבתאי (Saturn) (Angle: 78)
         Point pSaturn = getArcPoint(SUN_POS, ORBIT_RADIUS, 78, -390);
         Texture saturnTex = tex("saturn.jpg");
-        final Vector RING_AXIS = new Vector(0.05, 1, 0.05).normalize();
+        final Vector RING_AXIS = new Vector(0.05, 0.866, 0.5).normalize();
         scene.geometries.add(new Sphere(pSaturn, 42D)
                 .setEmission(new Color(6, 5, 2))
                 .setMaterial(new Material().setKD(0.72).setKS(0.38).setShininess(45)
@@ -231,7 +242,7 @@ class MiniProject1Tests {
         // ── מקורות אור מותאמים למראה קולנועי דרמטי כפי שמופיע בתמונה ──────────────────────
 
         // 1. אור חזק שבוקע מהשמש כדי לייצר הצללות משמעותיות על הכוכבים.
-        scene.lights.add(new PointLight(new Color(3000, 2500, 1500), SUN_POS)
+        scene.lights.add(new PointLight(new Color(180, 148, 95), SUN_POS)
                 .setKl(2E-7).setKq(1E-10).setSize(120));
 
         // 2. תאורת מילוי סביבתית - הונמכה לרמה חלשה כדי לא להרוס את צד הצל של הכוכבים (כדי לעמוד בחובה של 3 מקורות אור).

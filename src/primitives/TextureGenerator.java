@@ -324,6 +324,240 @@ public class TextureGenerator {
         save(img, outputPath);
     }
 
+    // ── Sun ───────────────────────────────────────────────────────────────────
+
+    /**
+     * Generates a solar photosphere texture — warm golden-yellow with fine
+     * granulation (convection cells) and scattered dark sunspot groups.
+     * Intended for use as an emission texture (full brightness, no Phong shading).
+     */
+    public static void generateSun(String outputPath) {
+        int W = 2048, H = 1024;
+        BufferedImage img = new BufferedImage(W, H, BufferedImage.TYPE_INT_RGB);
+
+        for (int y = 0; y < H; y++) {
+            double ny = y / (double) H;
+            for (int x = 0; x < W; x++) {
+                double nx = x / (double) W;
+
+                // Solar granulation — cross-product phase terms prevent horizontal banding
+                double gran = 20 * Math.sin(x * 0.047 + y * 0.039 + x * y * 1.4e-5)
+                                 * Math.cos(x * 0.031 - y * 0.053 + x * y * 8e-6)
+                            + 14 * Math.sin(x * 0.083 - y * 0.071 + x * y * 1.8e-5)
+                                 * Math.cos(x * 0.097 + y * 0.063 + x * y * 1.1e-5)
+                            +  9 * Math.sin(x * 0.131 + y * 0.109 + x * 1.2e-4 * y)
+                            +  5 * Math.sin(x * 0.217 - y * 0.193 + y * 9e-5 * x)
+                            +  3 * Math.sin(x * 0.341 + y * 0.271 + x * y * 5e-6);
+
+                // Slight polar darkening (limb-darkening analog)
+                double pole = 1.0 - 0.07 * Math.pow(Math.abs(ny - 0.5) * 2, 1.8);
+
+                // Warm amber-orange base (more orange than yellow)
+                int r = clamp((int)((252 + gran * 0.10) * pole));
+                int g = clamp((int)((158 + gran * 0.60) * pole));
+                int b = clamp((int)(( 38 + gran * 0.14) * pole));
+
+                // Sunspot groups — dark magnetic regions scattered near equator band
+                double spotDark = 0;
+                double[][] sc = {{0.11,0.47},{0.32,0.56},{0.55,0.43},{0.76,0.55},{0.91,0.46},{0.44,0.38}};
+                double[]   sr  = {0.038, 0.052, 0.040, 0.044, 0.032, 0.042};
+                for (int i = 0; i < sc.length; i++) {
+                    double dx = nx - sc[i][0], dy = (ny - sc[i][1]) * 1.4;
+                    double d  = Math.sqrt(dx * dx + dy * dy) / sr[i];
+                    if (d < 1.0) {
+                        double fade = 1 - d * d * (3 - 2 * d);
+                        spotDark = Math.max(spotDark, fade * 0.76);
+                    }
+                }
+                r = clamp((int)(r * (1 - spotDark * 0.72)));
+                g = clamp((int)(g * (1 - spotDark * 0.78)));
+                b = clamp((int)(b * (1 - spotDark * 0.50)));
+
+                img.setRGB(x, y, (r << 16) | (g << 8) | b);
+            }
+        }
+        save(img, outputPath);
+    }
+
+    // ── Mercury ───────────────────────────────────────────────────────────────
+
+    /**
+     * Generates a Mercury-like surface texture — medium gray with a warm tinge,
+     * heavily cratered, with no dark mare regions (uniform highlands).
+     */
+    public static void generateMercury(String outputPath) {
+        int W = 2048, H = 1024;
+        BufferedImage img = new BufferedImage(W, H, BufferedImage.TYPE_INT_RGB);
+
+        // Base terrain: medium gray (darker and more uniform than Moon)
+        for (int y = 0; y < H; y++) {
+            for (int x = 0; x < W; x++) {
+                double n = 12.0 * Math.sin(x * 0.038 + y * 0.051)
+                         +  8.0 * Math.sin(x * 0.069 - y * 0.044)
+                         +  5.0 * Math.sin(x * 0.112 + y * 0.083)
+                         +  3.0 * Math.sin(x * 0.183 - y * 0.134)
+                         +  1.5 * Math.sin(x * 0.290 + y * 0.227);
+                int v = clamp(122 + (int) n);
+                // Slight warm brownish tinge (r slightly > b)
+                img.setRGB(x, y, (clamp(v + 4) << 16) | (v << 8) | clamp(v - 6));
+            }
+        }
+
+        // Craters — dense coverage (Mercury is the most cratered terrestrial planet)
+        Random rng = new Random(0xC1A70539L);
+        int numCraters = 220;
+        for (int c = 0; c < numCraters; c++) {
+            int cx = rng.nextInt(W);
+            int cy = rng.nextInt(H);
+            double sizeRng = rng.nextDouble();
+            int cr = (int)(2 + sizeRng * sizeRng * 55);
+            double rimBright = 0.32 + 0.18 * rng.nextDouble();
+            double floorDark = 0.52 + 0.14 * rng.nextDouble();
+            for (int dy = -(cr + 3); dy <= cr + 3; dy++) {
+                for (int dx = -(cr + 3); dx <= cr + 3; dx++) {
+                    double dist = Math.sqrt(dx * dx + dy * dy);
+                    double r    = dist / cr;
+                    if (r > 1.5) continue;
+                    int px = (cx + dx + W) % W;
+                    int py = cy + dy;
+                    if (py < 0 || py >= H) continue;
+                    int old = img.getRGB(px, py);
+                    int ov  = (old >> 8) & 0xFF;
+                    int nv;
+                    if (r <= 0.82) {
+                        nv = clamp((int)(ov * floorDark));
+                    } else if (r <= 1.08) {
+                        double t = (r - 0.82) / 0.26;
+                        t = t * t * (3 - 2 * t);
+                        nv = clamp((int)(ov * (floorDark + t * (1.0 + rimBright - floorDark))));
+                    } else {
+                        double t = Math.min(1.0, (r - 1.08) / 0.42);
+                        t = t * t * (3 - 2 * t);
+                        nv = clamp((int)(ov * (1.0 + rimBright * 0.45 * (1 - t))));
+                    }
+                    img.setRGB(px, py, (clamp(nv + 4) << 16) | (nv << 8) | clamp(nv - 6));
+                }
+            }
+        }
+        save(img, outputPath);
+    }
+
+    // ── Venus ─────────────────────────────────────────────────────────────────
+
+    /**
+     * Generates a Venus cloud-deck texture — uniform pale cream-yellow with
+     * very subtle swirling cloud patterns. No surface features are visible.
+     */
+    public static void generateVenus(String outputPath) {
+        int W = 2048, H = 1024;
+        BufferedImage img = new BufferedImage(W, H, BufferedImage.TYPE_INT_RGB);
+
+        for (int y = 0; y < H; y++) {
+            double ny = y / (double) H;
+            // Slight polar brightening (reflective polar collar)
+            double polar = 1.0 + 0.06 * Math.pow(Math.abs(ny - 0.5) * 2, 2.2);
+
+            for (int x = 0; x < W; x++) {
+                double nx = x / (double) W;
+
+                // Very subtle cloud banding and swirl — low amplitude
+                double cloud = 8  * Math.sin(ny * 18.0 + nx * 3.2)
+                             + 5  * Math.sin(ny * 42.0 - nx * 7.1)
+                             + 3  * Math.sin(ny * 8.5  + nx * 12.4)
+                             + 2  * Math.sin(nx * 22.0 + ny * 5.6)
+                             + 1.5 * Math.sin(nx * 38.0 - ny * 9.3);
+
+                int r = clamp((int)((220 + cloud * 0.8) * polar));
+                int g = clamp((int)((200 + cloud * 0.6) * polar));
+                int b = clamp((int)((138 + cloud * 0.4) * polar));
+
+                img.setRGB(x, y, (r << 16) | (g << 8) | b);
+            }
+        }
+        save(img, outputPath);
+    }
+
+    // ── Uranus ────────────────────────────────────────────────────────────────
+
+    /**
+     * Generates a Uranus-like texture — pale teal/cyan, nearly featureless,
+     * with subtle latitude banding and a slightly brighter equatorial zone.
+     */
+    public static void generateUranus(String outputPath) {
+        int W = 2048, H = 1024;
+        BufferedImage img = new BufferedImage(W, H, BufferedImage.TYPE_INT_RGB);
+
+        for (int y = 0; y < H; y++) {
+            double ny = y / (double) H;
+            // Very faint latitude banding
+            double band = 4 * Math.sin(ny * 22.0) + 3 * Math.sin(ny * 48.0) + 1.5 * Math.sin(ny * 9.0);
+            // Slight polar darkening
+            double pole = 1.0 - 0.10 * Math.pow(Math.abs(ny - 0.5) * 2, 2.5);
+
+            for (int x = 0; x < W; x++) {
+                double nx = x / (double) W;
+                // Faint longitudinal texture variation
+                double turb = 2 * Math.sin(x * 0.019 + y * 0.023) + 1.5 * Math.sin(x * 0.041 - y * 0.037);
+
+                int r = clamp((int)((138 + band * 0.5 + turb) * pole));
+                int g = clamp((int)((200 + band * 0.7 + turb) * pole));
+                int b = clamp((int)((210 + band * 0.8 + turb) * pole));
+
+                img.setRGB(x, y, (r << 16) | (g << 8) | b);
+            }
+        }
+        save(img, outputPath);
+    }
+
+    // ── Neptune ───────────────────────────────────────────────────────────────
+
+    /**
+     * Generates a Neptune-like texture — deep cobalt blue with bright white
+     * cloud streaks and a Great Dark Spot analog.
+     */
+    public static void generateNeptune(String outputPath) {
+        int W = 2048, H = 1024;
+        BufferedImage img = new BufferedImage(W, H, BufferedImage.TYPE_INT_RGB);
+
+        for (int y = 0; y < H; y++) {
+            double ny = y / (double) H;
+            // Faint latitude banding (cloud zones)
+            double band =  6 * Math.sin(ny * 28.0)
+                         + 4 * Math.sin(ny * 14.0)
+                         + 2 * Math.sin(ny * 55.0);
+            double pole = 1.0 - 0.12 * Math.pow(Math.abs(ny - 0.5) * 2, 2.0);
+
+            for (int x = 0; x < W; x++) {
+                double nx = x / (double) W;
+                double turb = 4 * Math.sin(x * 0.031 + y * 0.027) + 2.5 * Math.sin(x * 0.059 - y * 0.049);
+
+                // Deep cobalt blue base
+                int r = clamp((int)((28  + band * 0.5 + turb * 0.3) * pole));
+                int g = clamp((int)((55  + band * 0.8 + turb * 0.5) * pole));
+                int b = clamp((int)((168 + band * 1.2 + turb * 0.8) * pole));
+
+                // Bright white cloud streaks (near 30°S and 45°N latitude bands)
+                double cloudA = Math.max(0, Math.sin((ny - 0.62) * Math.PI / 0.06));
+                double cloudB = Math.max(0, Math.sin((ny - 0.38) * Math.PI / 0.05));
+                double cloudX = Math.max(0, Math.sin(nx * 11.3 + 0.8)) * Math.max(0, Math.sin(nx * 7.1 - 1.2));
+                double cloud  = (cloudA + cloudB) * cloudX;
+                r = clamp(r + (int)(cloud * 110));
+                g = clamp(g + (int)(cloud * 120));
+                b = clamp(b + (int)(cloud * 95));
+
+                // Great Dark Spot — large oval anticyclone
+                double gdsDx = (nx - 0.55) / 0.14, gdsDy = (ny - 0.55) / 0.06;
+                double gds   = Math.exp(-(gdsDx * gdsDx + gdsDy * gdsDy));
+                r = clamp(r - (int)(gds * 18));
+                g = clamp(g - (int)(gds * 32));
+                b = clamp(b - (int)(gds * 55));
+
+                img.setRGB(x, y, (r << 16) | (g << 8) | b);
+            }
+        }
+        save(img, outputPath);
+    }
+
     // ── Galaxy / Skybox ────────────────────────────────────────────────────────
 
     /**
