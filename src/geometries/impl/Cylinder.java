@@ -1,5 +1,6 @@
 package geometries.impl;
 
+import geometries.api.AABB;
 import geometries.api.Intersectable.Intersection;
 import primitives.Point;
 import primitives.Ray;
@@ -51,6 +52,36 @@ public class Cylinder extends Tube {
         // Case 3: Point is on the side shell
         Point o = p0.add(v.scale(t));
         return point.subtract(o).normalize();
+    }
+
+    /**
+     * Computes a conservative (slightly oversized, but always valid) bounding
+     * box for the finite cylinder.
+     *
+     * <p>An exact bounding box for a cylinder tilted arbitrarily in space
+     * requires projecting the swept circle onto each axis, which is more
+     * involved than is justified here. Instead, this method takes the union
+     * of two spheres of the cylinder's radius, centered at the two cap
+     * centers — a simple, always-correct superset of the real cylinder
+     * volume. It is slightly looser than the tightest possible box, but
+     * still dramatically smaller than "no box at all", which is what matters
+     * for BVH culling.</p>
+     *
+     * @return a conservative axis-aligned bounding box for this cylinder
+     */
+    @Override
+    public AABB getBoundingBox() {
+        Point bottom = _axis.origin();
+        Point top = bottom.add(_axis.direction().scale(_height));
+
+        double minX = Math.min(bottom.getX(), top.getX()) - _radius;
+        double minY = Math.min(bottom.getY(), top.getY()) - _radius;
+        double minZ = Math.min(bottom.getZ(), top.getZ()) - _radius;
+        double maxX = Math.max(bottom.getX(), top.getX()) + _radius;
+        double maxY = Math.max(bottom.getY(), top.getY()) + _radius;
+        double maxZ = Math.max(bottom.getZ(), top.getZ()) + _radius;
+
+        return new AABB(minX, minY, minZ, maxX, maxY, maxZ);
     }
 
     @Override

@@ -1,5 +1,6 @@
 package geometries.impl;
 
+import geometries.api.AABB;
 import geometries.api.Intersectable.Intersection;
 import primitives.Point;
 import primitives.Ray;
@@ -59,6 +60,20 @@ public final class Sphere extends RadialGeometry {
     @Override
     public Vector getNormal(Point point) {
         return point.subtract(_center).normalize();
+    }
+
+    /**
+     * Computes the bounding box of the sphere: a cube-like box of side
+     * 2*radius, centered on the sphere's center. This is an exact (tight)
+     * bounding box for a sphere — not an approximation.
+     *
+     * @return the axis-aligned bounding box of this sphere
+     */
+    @Override
+    public AABB getBoundingBox() {
+        return new AABB(
+                _center.getX() - _radius, _center.getY() - _radius, _center.getZ() - _radius,
+                _center.getX() + _radius, _center.getY() + _radius, _center.getZ() + _radius);
     }
 
     @Override

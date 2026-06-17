@@ -1,5 +1,6 @@
 package geometries.impl;
 
+import geometries.api.AABB;
 import geometries.api.Geometry;
 import geometries.api.Intersectable.Intersection;
 import primitives.Point;
@@ -88,6 +89,31 @@ public class Polygon extends Geometry {
     @Override
     public Vector getNormal(Point point) {
         return _plane.getNormal(point);
+    }
+
+    /**
+     * Computes the bounding box of the polygon as the min/max extent of its
+     * vertices on each axis. This is a tight box for a planar polygon (the
+     * polygon never extends beyond the box formed by its own corners).
+     * Triangle inherits this implementation unchanged.
+     *
+     * @return the axis-aligned bounding box of this polygon
+     */
+    @Override
+    public AABB getBoundingBox() {
+        double minX = Double.POSITIVE_INFINITY, minY = Double.POSITIVE_INFINITY, minZ = Double.POSITIVE_INFINITY;
+        double maxX = Double.NEGATIVE_INFINITY, maxY = Double.NEGATIVE_INFINITY, maxZ = Double.NEGATIVE_INFINITY;
+
+        for (Point vertex : _vertices) {
+            minX = Math.min(minX, vertex.getX());
+            minY = Math.min(minY, vertex.getY());
+            minZ = Math.min(minZ, vertex.getZ());
+            maxX = Math.max(maxX, vertex.getX());
+            maxY = Math.max(maxY, vertex.getY());
+            maxZ = Math.max(maxZ, vertex.getZ());
+        }
+
+        return new AABB(minX, minY, minZ, maxX, maxY, maxZ);
     }
 
     /**

@@ -85,6 +85,28 @@ public abstract class Intersectable {
     protected abstract List<Intersection> calcIntersectionsHelper(Ray ray, double maxDistance);
 
     /**
+     * Returns the axis-aligned bounding box (AABB) that fully contains this
+     * intersectable, or {@code null} if it cannot be bounded.
+     *
+     * <p>This is used exclusively by the BVH acceleration structure
+     * ({@code geometries.impl.BVHNode}, driven by {@code geometries.impl.Geometries})
+     * to quickly reject rays that cannot possibly hit a whole branch of
+     * geometries, without testing every geometry inside it individually.</p>
+     *
+     * <p>The default implementation returns {@code null}, meaning
+     * "unbounded — must always be tested directly". This is correct for
+     * infinite geometries such as {@code Plane} and {@code Tube}. Concrete
+     * shapes that have a finite extent (e.g. {@code Sphere}, {@code Polygon}
+     * /{@code Triangle}, {@code Cylinder}) override this method with their
+     * actual bounding box.</p>
+     *
+     * @return the bounding box of this intersectable, or {@code null} if unbounded
+     */
+    public AABB getBoundingBox() {
+        return null;
+    }
+
+    /**
      * Finds intersections as points only.
      * * @param ray the ray to check
      * @return list of intersection points
