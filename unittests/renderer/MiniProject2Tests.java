@@ -45,7 +45,7 @@ class MiniProject2Tests {
     private static final double BASE_Y = -62;
 
     // ========================= Sky geometry =========================
-    private static final int SKY_COLS = 8, SKY_ROWS = 6; // 8×6×2 = 96 triangles
+    private static final int SKY_COLS = 10, SKY_ROWS = 14; // 10×14×2 = 280 triangles
 
     // ========================= Rendering quality =========================
     // Timing tests use no AA and hard shadows so the single-threaded baseline
@@ -194,6 +194,17 @@ class MiniProject2Tests {
                     .setEmission(canopyC).setMaterial(dark));
             }
         }
+
+        // ── Reflective water pool — flat mirror in the foreground ────────────
+        Material water = new Material().setKD(0.15).setKS(0.85).setShininess(120).setKR(0.65);
+        Color waterE   = new Color(8, 18, 32);
+        double wy = BASE_Y + 0.5;                    // just above ground level
+        scene.geometries.add(new Triangle(
+            new Point(-110, wy,  90), new Point( 110, wy,  90), new Point( 110, wy, 235))
+            .setEmission(waterE).setMaterial(water));
+        scene.geometries.add(new Triangle(
+            new Point(-110, wy,  90), new Point( 110, wy, 235), new Point(-110, wy, 235))
+            .setEmission(waterE).setMaterial(water));
 
         // ── Lights (all four types represented) ──────────────────────────────
         // 1. Ambient — set above.
