@@ -9,349 +9,324 @@ import scene.Scene;
 /**
  * Mini-Project 2 — Performance Acceleration (Bounding Volume Hierarchy).
  *
- * <p>Demonstrates two independent performance improvements on top of the
- * Mini-Project 1 pipeline (Anti-Aliasing + Soft Shadows, kept active here at
- * demo quality so the MP1 feature is visibly still working):</p>
+ * <p>Demonstrates two independent performance improvements:</p>
  * <ol>
- *   <li><b>Multi-threading</b> — already implemented in {@link Camera}
- *       (raw threads / parallel stream), selected via {@code setMultithreading}.</li>
- *   <li><b>BVH acceleration</b> — implemented in {@code geometries.impl.BVHNode},
- *       activated per-scene via {@code scene.geometries.buildBVH()}.</li>
+ *   <li><b>Multi-threading</b> — raw threads / parallel stream via {@code setMultithreading}.</li>
+ *   <li><b>BVH acceleration</b> — median-split hierarchy via {@code scene.geometries.buildBVH()}.</li>
  * </ol>
  *
- * <p><b>Scene description — "Asteroid Belt Observatory":</b> a glowing
- * central core, a ring of reflective "planet" spheres, a dense asteroid
- * belt of small spheres (the main BVH stress-test — hundreds of small,
- * spatially spread-out objects), a ring of glassy crystal shards
- * (triangles, exercising transparency), six reflective structural pillars
- * (cylinders), and a dark backdrop plane (intentionally left unbounded —
- * exercises the "always test directly" path for infinite geometries even
- * when BVH is active). Lit by five sources covering all four supported
- * light types: ambient, directional (sunlight), two point lights (core
- * glow + rim light, both with soft-shadow size), and a spot light
- * (dramatic highlight on the belt).</p>
+ * <p><b>Scene — "Savanna Sunset":</b> a low-poly African landscape rendered at golden hour.
+ * A 28×28 tessellated terrain (1568 triangles) is the main BVH stress-test — without
+ * acceleration, every ray must be checked against every triangle individually.
+ * The sky is a gradient of 96 triangles, mountain silhouettes add 8 large triangles,
+ * six acacia trees (cylinder trunk + 4 canopy triangles each) contribute 30 geometries,
+ * and a glowing sun sphere marks the light source. An infinite backdrop plane is kept
+ * out of the BVH intentionally (unbounded geometry — exercises the always-test path).
+ * All four light types and all four geometry types are present; reflections and
+ * transparency are active; and the Mini-Project 1 pipeline (AA + soft shadows) is
+ * demonstrated at full quality in the dedicated presentation-image test.</p>
  *
- * <p>The scene is built from purely deterministic formulas (a golden-angle
- * spiral and a low-discrepancy fractional sequence) rather than
- * {@code Math.random()}, so every call to {@link #buildBvhDemoScene()}
- * produces an <em>identical</em> scene — required so that the four
- * measurement configurations below are a fair, apples-to-apples comparison.</p>
+ * <p>All placement is deterministic — every call to {@link #buildScene()} returns an
+ * identical scene, making the four timing configurations a fair comparison.</p>
  */
 class MiniProject2Tests {
 
     MiniProject2Tests() {}
 
-    // ========================= Scene-size constants =========================
+    // ========================= Terrain geometry =========================
 
-    /** Number of small spheres in the asteroid belt — the main BVH stress-test. */
-    private static final int NUM_ASTEROIDS = 800;
-    /** Number of glassy triangular crystal shards (transparency exercise). */
-    private static final int NUM_CRYSTALS = 150;
-    /** Number of structural cylinder pillars. */
-    private static final int NUM_PILLARS = 6;
+    /** Side length of the square terrain grid (cells per side). 28×28×2 = 1568 triangles. */
+    private static final int GRID = 28;
 
-    private static final double BELT_INNER_RADIUS = 70;
-    private static final double BELT_OUTER_RADIUS = 160;
-    private static final double BELT_THICKNESS = 40;
-    private static final double ASTEROID_MIN_RADIUS = 1.0;
-    private static final double ASTEROID_MAX_RADIUS = 3.0;
+    /** Terrain world-space extents. */
+    private static final double TX0 = -260, TX1 = 260, TZ0 = -130, TZ1 = 280;
 
-    private static final double CRYSTAL_INNER_RADIUS = 30;
-    private static final double CRYSTAL_OUTER_RADIUS = 55;
-    private static final double CRYSTAL_SIZE = 4.0;
+    /** Y offset of the flat ground reference (before height-map lift). */
+    private static final double BASE_Y = -62;
 
-    private static final double PILLAR_RING_RADIUS = 220;
-    private static final double PILLAR_HEIGHT = 120;
-    private static final double PILLAR_RADIUS = 5;
+    // ========================= Sky geometry =========================
+    private static final int SKY_COLS = 8, SKY_ROWS = 6; // 8×6×2 = 96 triangles
 
-    /** Golden angle (radians) — produces an even, non-repeating spiral distribution. */
-    private static final double GOLDEN_ANGLE = Math.toRadians(137.50776);
-    /** Fractional part of 1/phi — used as a deterministic low-discrepancy sequence step. */
-    private static final double GOLDEN_FRAC_STEP = 0.6180339887;
+    // ========================= Rendering quality =========================
+    // Timing tests use no AA and hard shadows so the single-threaded baseline
+    // finishes in seconds, not hours; the presentation image uses full quality.
 
-    // ========================= Rendering-quality constants =========================
-    // Timing measurements use minimal sampling (AA=1, SS=1) so that the
-    // baseline (no BVH, single thread) finishes in ~30-60 s rather than hours.
-    // A 9x9 quality for EVERY pixel × 5 lights × 9 shadow rays × 900+ geometries
-    // with no acceleration is ~50 billion operations — not a fair baseline.
-    // The final presentation image uses full quality (AA=9, SS=9) to demonstrate
-    // MP1 at its best; that test runs with BVH+MT so it stays fast.
+    private static final int TIMING_AA = 1; // off during timing
+    private static final int TIMING_SS = 1; // hard shadows during timing
+    private static final int FINAL_AA  = 9; // 9×9 for the presentation image
+    private static final int FINAL_SS  = 9;
 
-    /** AA samples for the four timing-measurement tests (1 = off). */
-    private static final int TIMING_AA = 1;
-    /** Soft-shadow samples for the four timing-measurement tests (1 = hard shadows). */
-    private static final int TIMING_SS = 1;
+    // ========================= Helpers =========================
 
-    /** AA samples for the final high-quality presentation image. */
-    private static final int FINAL_AA = 9;
-    /** Soft-shadow samples for the final high-quality presentation image. */
-    private static final int FINAL_SS = 9;
+    private static double frac(double x) { return x - Math.floor(x); }
 
-    // ========================= Deterministic placement helper =========================
-
-    /** Returns the fractional part of {@code x} — used to build a repeatable pseudo-random sequence. */
-    private static double frac(double x) {
-        return x - Math.floor(x);
+    /** Terrain height-map: sum of sine waves, range ≈ ±18 units. */
+    private static double terrH(double x, double z) {
+        return  8 * Math.sin(x * 0.022 + z * 0.015)
+              + 5 * Math.cos(x * 0.038 - z * 0.028)
+              + 3 * Math.sin(x * 0.055 + z * 0.047)
+              + 2 * Math.cos(x * 0.081 - z * 0.072);
     }
 
-    // ========================= Scene Setup =========================
+    /** Terrain color: warm earthy oranges-reds, brighter on hilltops. */
+    private static Color terrC(double x, double z, double h) {
+        double t  = Math.max(0, Math.min(1, (h + 18) / 36.0));
+        double rf = frac(x * 0.073 + z * 0.097 + x * z * 3e-5);
+        return new Color(
+            Math.min(255, (int)(75  + t * 95 + rf * 25)),
+            Math.min(255, (int)(30  + t * 40 + rf * 10)),
+            Math.min(255, (int)( 5  + t * 13 + rf *  5)));
+    }
 
-    /**
-     * Builds the "Asteroid Belt Observatory" scene used by all four
-     * measurement tests below. Pure function of nothing but the constants
-     * above — no external state, no randomness — so every call returns an
-     * identical scene, which is required for a fair BVH/MT comparison.
-     *
-     * @return a freshly built scene
-     */
-    private static Scene buildBvhDemoScene() {
-        Scene scene = new Scene("Asteroid Belt Observatory");
-        scene.setBackground(new Color(2, 2, 5));
-        scene.setAmbientLight(new AmbientLight(new Color(8, 8, 12), new Double3(1)));
+    /** Sky gradient: t=0 → warm orange at horizon; t=1 → cool purple at zenith. */
+    private static Color skyC(double t) {
+        return new Color(
+            (int)(215 * (1 - t) + 16 * t),
+            (int)( 85 * (1 - t) +  6 * t),
+            (int)( 12 * (1 - t) + 55 * t));
+    }
 
-        // ── Backdrop plane — intentionally infinite/unbounded. Even when BVH
-        //    is enabled this geometry cannot be placed in the tree and must
-        //    always be tested directly (see Geometries.buildBVH()). ─────────
-        scene.geometries.add(new Plane(new Point(0, 0, -300), new Vector(0, 0, 1))
-                .setEmission(new Color(3, 3, 8))
-                .setMaterial(new Material().setKD(0.4).setKS(0.1).setShininess(10)));
+    // ========================= Scene =========================
 
-        // ── Glowing core — also marked as a light source so shadow rays
-        //    ignore it (it should never shadow itself). ─────────────────────
-        scene.geometries.add(new Sphere(new Point(0, 0, 0), 22)
-                .setEmission(new Color(220, 160, 60))
-                .setMaterial(new Material().setKD(0.5).setKS(0.4).setShininess(60).setKR(0.1))
+    private static Scene buildScene() {
+        Scene scene = new Scene("Savanna Sunset");
+        scene.setBackground(new Color(16, 7, 38));
+        scene.setAmbientLight(new AmbientLight(new Color(52, 26, 10), new Double3(1)));
+
+        Material flat  = new Material().setKD(0.92).setKS(0.05).setShininess(4);
+        Material skyM  = new Material().setKD(0.85).setKS(0.10).setShininess(8);
+        Material dark  = new Material().setKD(0.85).setKS(0.05).setShininess(3);
+        Material trunk = new Material().setKD(0.70).setKS(0.12).setShininess(12);
+
+        // ── Backdrop plane (infinite → stays outside BVH) ─────────────────
+        scene.geometries.add(
+            new Plane(new Point(0, 0, -700), new Vector(0, 0, 1))
+                .setEmission(new Color(10, 5, 28)).setMaterial(skyM));
+
+        // ── Sun — glowing emissive sphere; marked as light source so
+        //    shadow rays from the terrain do not hit it ─────────────────────
+        scene.geometries.add(
+            new Sphere(new Point(-185, 6, -400), 92)
+                .setEmission(new Color(255, 162, 40))
+                .setMaterial(new Material().setKD(0.1).setKS(0))
                 .setLightSource());
 
-        // ── Ring of six reflective "planet" spheres around the core ───────
-        for (int i = 0; i < 6; i++) {
-            double angle = i * (2 * Math.PI / 6);
-            double x = 40 * Math.cos(angle);
-            double z = 40 * Math.sin(angle);
-            scene.geometries.add(new Sphere(new Point(x, 0, z), 8)
-                    .setEmission(new Color(60 + i * 20, 90, 160 - i * 15))
-                    .setMaterial(new Material().setKD(0.4).setKS(0.5).setShininess(100).setKR(0.3)));
+        // ── Sky — 8×6 grid of triangles forming a sunset gradient ─────────
+        final double SX0 = -700, SX1 = 700, SZ = -600;
+        final double SY0 = -22,  SY1 = 560;
+        double sdx = (SX1 - SX0) / SKY_COLS;
+        double sdy = (SY1 - SY0) / SKY_ROWS;
+        for (int sr = 0; sr < SKY_ROWS; sr++) {
+            double t0 = (double) sr      / SKY_ROWS;
+            double t1 = (double)(sr + 1) / SKY_ROWS;
+            double y0 = SY0 + sr * sdy, y1 = y0 + sdy;
+            Color cBot = skyC(t0), cTop = skyC(t1);
+            for (int sc = 0; sc < SKY_COLS; sc++) {
+                double x0 = SX0 + sc * sdx, x1 = x0 + sdx;
+                Point p00 = new Point(x0, y0, SZ);
+                Point p10 = new Point(x1, y0, SZ);
+                Point p11 = new Point(x1, y1, SZ);
+                Point p01 = new Point(x0, y1, SZ);
+                scene.geometries.add(new Triangle(p00, p10, p11).setEmission(cBot).setMaterial(skyM));
+                scene.geometries.add(new Triangle(p00, p11, p01).setEmission(cTop).setMaterial(skyM));
+            }
         }
 
-        // ── Asteroid belt — the main BVH stress-test: hundreds of small,
-        //    spatially scattered spheres. Placed on a golden-angle spiral so
-        //    they spread out evenly without ever repeating a pattern. ──────
-        for (int i = 0; i < NUM_ASTEROIDS; i++) {
-            double angle = i * GOLDEN_ANGLE;
-            double radial = BELT_INNER_RADIUS
-                    + (BELT_OUTER_RADIUS - BELT_INNER_RADIUS) * frac(i * GOLDEN_FRAC_STEP);
-            double height = (frac(i * 0.37) - 0.5) * BELT_THICKNESS;
-            double size = ASTEROID_MIN_RADIUS
-                    + (ASTEROID_MAX_RADIUS - ASTEROID_MIN_RADIUS) * frac(i * 0.74);
-
-            Point center = new Point(radial * Math.cos(angle), height, radial * Math.sin(angle));
-
-            Material material = (i % 3 == 0)
-                    ? new Material().setKD(0.3).setKS(0.5).setShininess(80).setKR(0.4)   // reflective
-                    : new Material().setKD(0.7).setKS(0.2).setShininess(20);             // matte
-
-            Color emission = new Color(
-                    90 + 60 * frac(i * 0.13),
-                    70 + 60 * frac(i * 0.29),
-                    60 + 60 * frac(i * 0.51));
-
-            scene.geometries.add(new Sphere(center, size).setEmission(emission).setMaterial(material));
+        // ── Terrain — 28×28 = 1568 triangles (the BVH stress-test) ─────────
+        double tdx = (TX1 - TX0) / GRID, tdz = (TZ1 - TZ0) / GRID;
+        for (int gz = 0; gz < GRID; gz++) {
+            for (int gx = 0; gx < GRID; gx++) {
+                double x0 = TX0 + gx * tdx, x1 = x0 + tdx;
+                double z0 = TZ0 + gz * tdz, z1 = z0 + tdz;
+                double h00 = terrH(x0, z0), h10 = terrH(x1, z0);
+                double h01 = terrH(x0, z1), h11 = terrH(x1, z1);
+                Point p00 = new Point(x0, BASE_Y + h00, z0);
+                Point p10 = new Point(x1, BASE_Y + h10, z0);
+                Point p01 = new Point(x0, BASE_Y + h01, z1);
+                Point p11 = new Point(x1, BASE_Y + h11, z1);
+                scene.geometries.add(new Triangle(p00, p10, p11)
+                    .setEmission(terrC((x0 + x1) / 2, z0, (h00 + h10 + h11) / 3.0))
+                    .setMaterial(flat));
+                scene.geometries.add(new Triangle(p00, p11, p01)
+                    .setEmission(terrC(x0, (z0 + z1) / 2, (h00 + h01 + h11) / 3.0))
+                    .setMaterial(flat));
+            }
         }
 
-        // ── Crystal shards — glassy triangles, exercising transparency ────
-        for (int i = 0; i < NUM_CRYSTALS; i++) {
-            double angle = i * GOLDEN_ANGLE * 1.3;
-            double radial = CRYSTAL_INNER_RADIUS
-                    + (CRYSTAL_OUTER_RADIUS - CRYSTAL_INNER_RADIUS) * frac(i * GOLDEN_FRAC_STEP);
-            double height = (frac(i * 0.21) - 0.5) * 20;
+        // ── Mountains — dark silhouette triangles in the background ─────────
+        Color mtnC = new Color(26, 12, 5);
+        double[][] mts = {
+            {-360, -62, -185,  -90, 112, -218,  170, -62, -168},
+            { -80, -62, -192,   65,  98, -222,  290, -62, -172},
+            { 210, -62, -168,  390,  62, -198,  520, -62, -162},
+            {-520, -62, -172, -310,  58, -198, -140, -62, -182},
+        };
+        for (double[] m : mts)
+            scene.geometries.add(new Triangle(
+                new Point(m[0], m[1], m[2]),
+                new Point(m[3], m[4], m[5]),
+                new Point(m[6], m[7], m[8]))
+                .setEmission(mtnC).setMaterial(dark));
 
-            Point center = new Point(radial * Math.cos(angle), height, radial * Math.sin(angle));
-
-            // Build a small flat triangle facing roughly outward from the core.
-            Vector vRight = new Vector(Math.cos(angle + Math.PI / 2), 0, Math.sin(angle + Math.PI / 2));
-            Vector vUp = Vector.AXIS_Y;
-
-            Point p1 = center.add(vRight.scale(CRYSTAL_SIZE));
-            Point p2 = center.add(vRight.scale(-CRYSTAL_SIZE / 2)).add(vUp.scale(CRYSTAL_SIZE * 0.87));
-            Point p3 = center.add(vRight.scale(-CRYSTAL_SIZE / 2)).add(vUp.scale(-CRYSTAL_SIZE * 0.87));
-
-            scene.geometries.add(new Triangle(p1, p2, p3)
-                    .setEmission(new Color(40, 80, 140))
-                    .setMaterial(new Material().setKD(0.05).setKS(0.6).setShininess(150).setKT(0.6)));
+        // ── Acacia trees: 6 trees × (1 cylinder trunk + 4 canopy triangles) ─
+        Color trunkC  = new Color(40, 19, 7);
+        Color canopyC = new Color(16, 36, 9);
+        double[][] treeXZ = {
+            {-152, 78}, {-218, 22}, { 128, 48},
+            { 185, -8}, { -58,-22}, { 235, 95}
+        };
+        for (double[] tp : treeXZ) {
+            double tx = tp[0], tz = tp[1];
+            double ty  = BASE_Y + terrH(tx, tz);
+            double tH  = 50 + frac(tx * 0.17 + tz * 0.23) * 25;
+            double cR  = 30 + frac(tx * 0.31 + tz * 0.41) * 18;
+            double top = ty + tH;
+            scene.geometries.add(
+                new Cylinder(new Ray(new Point(tx, ty, tz), Vector.AXIS_Y), 3.5, tH)
+                    .setEmission(trunkC).setMaterial(trunk));
+            double[] ang = {0, Math.PI / 2, Math.PI, 3 * Math.PI / 2};
+            for (int i = 0; i < 4; i++) {
+                double a1 = ang[i], a2 = ang[(i + 1) % 4];
+                Point apex = new Point(tx, top,     tz);
+                Point e1   = new Point(tx + cR * Math.cos(a1), top - 10, tz + cR * Math.sin(a1));
+                Point e2   = new Point(tx + cR * Math.cos(a2), top - 10, tz + cR * Math.sin(a2));
+                scene.geometries.add(new Triangle(apex, e1, e2)
+                    .setEmission(canopyC).setMaterial(dark));
+            }
         }
 
-        // ── Structural pillars — finite cylinders, placed in a hexagon ─────
-        for (int i = 0; i < NUM_PILLARS; i++) {
-            double angle = i * (2 * Math.PI / NUM_PILLARS);
-            double x = PILLAR_RING_RADIUS * Math.cos(angle);
-            double z = PILLAR_RING_RADIUS * Math.sin(angle);
-            scene.geometries.add(new Cylinder(
-                    new Ray(new Point(x, -PILLAR_HEIGHT / 2, z), Vector.AXIS_Y),
-                    PILLAR_RADIUS, PILLAR_HEIGHT)
-                    .setEmission(new Color(50, 50, 60))
-                    .setMaterial(new Material().setKD(0.3).setKS(0.5).setShininess(90).setKR(0.5)));
-        }
-
-        // ── Five light sources, covering all four supported light types ───
-
-        // 1. Ambient — already set above.
-
-        // 2. Directional — distant "sunlight" raking across the whole scene.
-        scene.lights.add(new DirectionalLight(new Color(40, 35, 30), new Vector(-1, -0.6, -0.3)));
-
-        // 3. Point light — the core's own glow, with soft-shadow size.
-        scene.lights.add(new PointLight(new Color(255, 200, 120), new Point(0, 0, 0))
-                .setKl(0.0005).setKq(0.000003).setSize(15));
-
-        // 4. Point light — cool rim light from the opposite side, soft shadows.
-        scene.lights.add(new PointLight(new Color(80, 110, 200), new Point(-180, 90, -180))
-                .setKl(0.0008).setKq(0.000005).setSize(10));
-
-        // 5. Spot light — dramatic, focused highlight on the asteroid belt.
-        scene.lights.add(new SpotLight(new Color(255, 255, 255),
-                new Point(0, 160, 0), new Vector(0.3, -1, 0.3))
-                .setNarrowBeam(4).setKl(0.0003).setKq(0.000002).setSize(8));
+        // ── Lights (all four types represented) ──────────────────────────────
+        // 1. Ambient — set above.
+        // 2. Directional sunlight raking in from the left.
+        scene.lights.add(new DirectionalLight(
+            new Color(255, 138, 48), new Vector(1.1, -0.22, 0.45)));
+        // 3. Point light at the sun sphere (warm glow with soft-shadow size).
+        scene.lights.add(new PointLight(
+            new Color(255, 188, 68), new Point(-185, 6, -400))
+            .setKl(0.00005).setKq(0.00000009).setSize(48));
+        // 4. Cool purple-blue fill from the zenith (sky bounce).
+        scene.lights.add(new SpotLight(
+            new Color(68, 42, 128), new Point(360, 290, -160), new Vector(-0.8, -1, -0.3))
+            .setNarrowBeam(4).setKl(0.0002).setKq(0.0000012));
+        // 5. Warm orange accent spot highlighting foreground terrain.
+        scene.lights.add(new SpotLight(
+            new Color(195, 98, 28), new Point(-130, 230, 200), new Vector(0.5, -1, -0.42))
+            .setNarrowBeam(3).setKl(0.00014).setKq(0.0000008).setSize(22));
 
         return scene;
     }
 
-    // ========================= Camera Setup =========================
+    // ========================= Camera =========================
 
-    /**
-     * Creates a {@link Camera.Builder} pre-configured for the asteroid belt scene.
-     * Resolution is moderate by default — raise it for the final submission image.
-     */
-    private static Camera.Builder buildCameraBuilder(Scene scene, SimpleRayTracer rayTracer) {
+    private static Camera.Builder buildCameraBuilder(Scene scene, SimpleRayTracer tracer) {
         return Camera.getBuilder()
-                .setRayTracer(scene, rayTracer)
-                .setLocation(new Point(0, 180, 420))
-                .setDirection(new Point(0, 0, 0), Vector.AXIS_Y)
+                .setRayTracer(scene, tracer)
+                .setLocation(new Point(0, 32, 315))
+                .setDirection(new Point(-45, -22, -100), Vector.AXIS_Y)
                 .setVpDistance(350)
-                .setVpSize(280, 280)
-                .setResolution(500, 500)
+                .setVpSize(490, 308)    // 16:10 landscape aspect
+                .setResolution(600, 375)
                 .setDebugPrint(5);
     }
 
-    // ========================= Measurement Helper =========================
+    // ========================= Measurement helper =========================
 
-    /**
-     * Builds a fresh scene, optionally enables BVH, configures multi-threading,
-     * renders, writes the image, and returns the elapsed render time in
-     * milliseconds. Used by all four mandatory measurement tests below, plus
-     * the optional aggregate report, so the timing/printing logic is written
-     * exactly once (DRY).
-     *
-     * @param useBVH  whether to call {@code scene.geometries.buildBVH()} before rendering
-     * @param threads multithreading parameter, passed directly to {@code Camera.Builder.setMultithreading}
-     * @param label   human-readable description printed to the console
-     * @param fileName output image file name (without extension)
-     * @return elapsed render time in milliseconds
-     */
-    private static long runMeasurement(boolean useBVH, int threads, String label, String fileName) {
-        Scene scene = buildBvhDemoScene();
+    private static long runMeasurement(boolean useBVH, int threads, String label, String file) {
+        Scene scene = buildScene();
         if (useBVH) scene.geometries.buildBVH();
 
-        SimpleRayTracer rayTracer = new SimpleRayTracer(scene)
+        SimpleRayTracer tracer = new SimpleRayTracer(scene)
                 .setSoftShadowSamples(TIMING_SS)
                 .setSamplingPattern(Blackboard.SamplingPattern.JITTERED);
 
-        Camera camera = buildCameraBuilder(scene, rayTracer)
+        Camera camera = buildCameraBuilder(scene, tracer)
                 .setAntiAliasingSamples(TIMING_AA)
                 .setMultithreading(threads)
                 .build();
 
         System.out.println("=== " + label + " (BVH=" + useBVH + ", threads=" + threads + ") ===");
         long start = System.currentTimeMillis();
-        camera.renderImage().writeToImage(fileName);
+        camera.renderImage().writeToImage(file);
         long elapsed = System.currentTimeMillis() - start;
         System.out.printf("%s: %,d ms%n", label, elapsed);
         return elapsed;
     }
 
-    // ========================= Mandatory Measurement Configurations =========================
-    // Per the assignment: each configuration is its own test method, with a
-    // name that clearly states what is active and what is disabled.
+    // ========================= Mandatory configurations =========================
 
-    /** Configuration 1 — baseline: BVH disabled, multithreading disabled. */
+    /** Config 1 — baseline: no acceleration, single thread. */
     @Test
     void measurement_NoAcceleration_NoMultithreading() {
-        runMeasurement(false, 0, "Config 1: Acceleration OFF, Multithreading OFF", "mp2_accelOFF_mtOFF");
+        runMeasurement(false, 0,
+            "Config 1: Acceleration OFF, Multithreading OFF", "mp2_accelOFF_mtOFF");
     }
 
-    /** Configuration 2 — BVH disabled, multithreading enabled (auto core count). */
+    /** Config 2 — no acceleration, multi-threading enabled. */
     @Test
     void measurement_NoAcceleration_WithMultithreading() {
-        runMeasurement(false, -2, "Config 2: Acceleration OFF, Multithreading ON", "mp2_accelOFF_mtON");
+        runMeasurement(false, -2,
+            "Config 2: Acceleration OFF, Multithreading ON",  "mp2_accelOFF_mtON");
     }
 
-    /** Configuration 3 — BVH enabled, multithreading disabled. */
+    /** Config 3 — BVH enabled, single thread. */
     @Test
     void measurement_WithBVH_NoMultithreading() {
-        runMeasurement(true, 0, "Config 3: Acceleration ON, Multithreading OFF", "mp2_accelON_mtOFF");
+        runMeasurement(true, 0,
+            "Config 3: Acceleration ON,  Multithreading OFF", "mp2_accelON_mtOFF");
     }
 
-    /** Configuration 4 — BVH enabled, multithreading enabled (auto core count). */
+    /** Config 4 — BVH + multi-threading: fastest configuration. */
     @Test
     void measurement_WithBVH_WithMultithreading() {
-        runMeasurement(true, -2, "Config 4: Acceleration ON, Multithreading ON", "mp2_accelON_mtON");
+        runMeasurement(true, -2,
+            "Config 4: Acceleration ON,  Multithreading ON",  "mp2_accelON_mtON");
     }
 
-    // ========================= Optional Aggregate Report =========================
+    // ========================= Aggregate report =========================
 
-    /**
-     * Convenience test that runs all four configurations back-to-back and
-     * prints a single comparison table — useful for quickly building the
-     * MEASUREMENTS report. Not a replacement for the four separate tests
-     * above (which remain the graded, individually named configurations).
-     */
     @Test
     void measurement_FullComparisonReport() {
-        long baseline = runMeasurement(false, 0, "Report 1/4: Accel OFF, MT OFF", "mp2_report_accelOFF_mtOFF");
-        long mtOnly = runMeasurement(false, -2, "Report 2/4: Accel OFF, MT ON", "mp2_report_accelOFF_mtON");
-        long bvhOnly = runMeasurement(true, 0, "Report 3/4: Accel ON, MT OFF", "mp2_report_accelON_mtOFF");
-        long both = runMeasurement(true, -2, "Report 4/4: Accel ON, MT ON", "mp2_report_accelON_mtON");
+        long b = runMeasurement(false, 0,  "Report 1/4: Accel OFF, MT OFF", "mp2_report_accelOFF_mtOFF");
+        long m = runMeasurement(false, -2, "Report 2/4: Accel OFF, MT ON",  "mp2_report_accelOFF_mtON");
+        long v = runMeasurement(true,  0,  "Report 3/4: Accel ON,  MT OFF", "mp2_report_accelON_mtOFF");
+        long a = runMeasurement(true,  -2, "Report 4/4: Accel ON,  MT ON",  "mp2_report_accelON_mtON");
 
         System.out.println();
         System.out.println("==================== PERFORMANCE SUMMARY ====================");
-        System.out.printf("Baseline (no accel, no MT):   %,9d ms   (x1.00)%n", baseline);
-        System.out.printf("Multithreading only:          %,9d ms   (x%.2f)%n", mtOnly, ratio(baseline, mtOnly));
-        System.out.printf("BVH only:                     %,9d ms   (x%.2f)%n", bvhOnly, ratio(baseline, bvhOnly));
-        System.out.printf("BVH + Multithreading:         %,9d ms   (x%.2f)%n", both, ratio(baseline, both));
-        System.out.println("===============================================================");
+        System.out.printf("Baseline (no accel, no MT):   %,9d ms  (x1.00)%n", b);
+        System.out.printf("Multithreading only:          %,9d ms  (x%.2f)%n",  m, ratio(b, m));
+        System.out.printf("BVH only:                     %,9d ms  (x%.2f)%n",  v, ratio(b, v));
+        System.out.printf("BVH + Multithreading:         %,9d ms  (x%.2f)%n",  a, ratio(b, a));
+        System.out.println("=============================================================");
     }
 
-    /** Speedup ratio of {@code baseline} relative to {@code current}, guarding against division by zero. */
-    private static double ratio(long baseline, long current) {
-        return current == 0 ? Double.POSITIVE_INFINITY : (double) baseline / current;
+    private static double ratio(long base, long cur) {
+        return cur == 0 ? Double.POSITIVE_INFINITY : (double) base / cur;
     }
 
-    // ========================= Final Presentation Image =========================
+    // ========================= Final presentation image =========================
 
     /**
-     * Renders the definitive high-quality presentation image used in the submission.
-     * BVH and multi-threading are both enabled (fastest possible configuration);
-     * Anti-Aliasing and Soft Shadows are raised to production quality (9×9 each)
-     * to satisfy the "Mini-Project 1 at max quality" requirement.
-     *
-     * <p>This test is intentionally separate from the timing measurements above —
-     * it does not measure render time, it produces the best-looking image.</p>
+     * Renders the submission's definitive image at full quality:
+     * BVH + multi-threading + 9×9 AA + 9×9 soft shadows + 900×562 resolution.
+     * Runs in minutes thanks to BVH; demonstrates the MP1 pipeline at its best.
      */
     @Test
     void renderFinalPresentationImage() {
-        Scene scene = buildBvhDemoScene();
+        Scene scene = buildScene();
         scene.geometries.buildBVH();
 
-        SimpleRayTracer rayTracer = new SimpleRayTracer(scene)
+        SimpleRayTracer tracer = new SimpleRayTracer(scene)
                 .setSoftShadowSamples(FINAL_SS)
                 .setSamplingPattern(Blackboard.SamplingPattern.JITTERED);
 
         Camera.getBuilder()
-                .setRayTracer(scene, rayTracer)
-                .setLocation(new Point(0, 180, 420))
-                .setDirection(new Point(0, 0, 0), Vector.AXIS_Y)
+                .setRayTracer(scene, tracer)
+                .setLocation(new Point(0, 32, 315))
+                .setDirection(new Point(-45, -22, -100), Vector.AXIS_Y)
                 .setVpDistance(350)
-                .setVpSize(280, 280)
-                .setResolution(800, 800)
+                .setVpSize(490, 308)
+                .setResolution(900, 562)
                 .setAntiAliasingSamples(FINAL_AA)
                 .setMultithreading(-2)
                 .setDebugPrint(1)
