@@ -1,10 +1,14 @@
 package renderer;
 
 import geometries.impl.*;
+import java.io.IOException;
 import lighting.*;
 import org.junit.jupiter.api.Test;
 import primitives.*;
 import scene.Scene;
+
+import java.util.function.BiFunction;
+import java.util.function.Function;
 
 /**
  * Mini-Project 2 — Performance Acceleration (Bounding Volume Hierarchy).
@@ -19,59 +23,57 @@ import scene.Scene;
  *       activated per-scene via {@code scene.geometries.buildBVH()}.</li>
  * </ol>
  *
- * <p><b>Scene description — "Asteroid Belt Observatory":</b> a glowing
- * central core, a ring of reflective "planet" spheres, a dense asteroid
- * belt of small spheres (the main BVH stress-test — hundreds of small,
- * spatially spread-out objects), a ring of glassy crystal shards
- * (triangles, exercising transparency), six reflective structural pillars
- * (cylinders), and a dark backdrop plane (intentionally left unbounded —
- * exercises the "always test directly" path for infinite geometries even
- * when BVH is active). Lit by five sources covering all four supported
- * light types: ambient, directional (sunlight), two point lights (core
- * glow + rim light, both with soft-shadow size), and a spot light
- * (dramatic highlight on the belt).</p>
+ * <p><b>Scene description — "Low-Poly Savanna Sunset":</b> a faceted sky and
+ * a faceted ground, each built from a dense grid of small flat-shaded
+ * triangles (the classic "low-poly art" look — every triangle keeps a
+ * single constant normal, and a low, raking directional light makes each
+ * facet catch a slightly different brightness). A glowing sun sits on the
+ * horizon, also acting as the main light source; silhouette acacia trees
+ * stand against the bright sky; a handful of small glassy/reflective
+ * "rocks" sparkle in the foreground. This dense grid of triangles is also
+ * exactly what the BVH needs to prove itself — thousands of small,
+ * spatially-clustered primitives are the textbook case for bounding-volume
+ * culling.</p>
  *
- * <p>The scene is built from purely deterministic formulas (a golden-angle
- * spiral and a low-discrepancy fractional sequence) rather than
- * {@code Math.random()}, so every call to {@link #buildBvhDemoScene()}
- * produces an <em>identical</em> scene — required so that the four
- * measurement configurations below are a fair, apples-to-apples comparison.</p>
+ * <p>The whole scene is built from deterministic formulas (no
+ * {@code Math.random()}), so every call to {@link #buildBvhDemoScene()}
+ * produces an <em>identical</em> scene — required so the four measurement
+ * configurations below are a fair, apples-to-apples comparison.</p>
  */
 class MiniProject2Tests {
 
     MiniProject2Tests() {}
 
-    // ========================= Scene-size constants =========================
-    // Tunable knobs, not hard-coded magic numbers scattered through the code.
-    // Increase NUM_ASTEROIDS / resolution if the baseline (Config 1) render
-    // finishes in well under ~20 seconds on your machine — a too-fast
-    // baseline makes the speedup ratio unreliable to measure.
+    // ========================= Sky (faceted backdrop) =========================
 
-    /** Number of small spheres in the asteroid belt — the main BVH stress-test. */
-    private static final int NUM_ASTEROIDS = 400;
-    /** Number of glassy triangular crystal shards (transparency exercise). */
-    private static final int NUM_CRYSTALS = 150;
-    /** Number of structural cylinder pillars. */
-    private static final int NUM_PILLARS = 6;
+    private static final int SKY_COLS = 26;
+    private static final int SKY_ROWS = 14;
+    private static final double SKY_X_MIN = -320, SKY_X_MAX = 320;
+    private static final double SKY_BOTTOM_Y = -60, SKY_TOP_Y = 230;
+    private static final double SKY_BASE_Z = -380;
+    /** How far each sky vertex is randomly pushed forward/back — breaks the wall into facets. */
+    private static final double SKY_DEPTH_JITTER = 14;
 
-    private static final double BELT_INNER_RADIUS = 70;
-    private static final double BELT_OUTER_RADIUS = 160;
-    private static final double BELT_THICKNESS = 40;
-    private static final double ASTEROID_MIN_RADIUS = 1.0;
-    private static final double ASTEROID_MAX_RADIUS = 3.0;
+    // ========================= Ground (faceted terrain) =========================
 
-    private static final double CRYSTAL_INNER_RADIUS = 30;
-    private static final double CRYSTAL_OUTER_RADIUS = 55;
-    private static final double CRYSTAL_SIZE = 4.0;
+    private static final int GROUND_COLS = 26;
+    private static final int GROUND_ROWS = 16;
+    private static final double GROUND_NEAR_Z = 380, GROUND_FAR_Z = -380;
+    private static final double GROUND_BASE_Y = -62;
+    /** How far each ground vertex is randomly pushed up/down — breaks the floor into facets. */
+    private static final double GROUND_HEIGHT_JITTER = 7;
 
-    private static final double PILLAR_RING_RADIUS = 220;
-    private static final double PILLAR_HEIGHT = 120;
-    private static final double PILLAR_RADIUS = 5;
+    // ========================= Palette (warm sunset gradient) =========================
 
-    /** Golden angle (radians) — produces an even, non-repeating spiral distribution. */
-    private static final double GOLDEN_ANGLE = Math.toRadians(137.50776);
-    /** Fractional part of 1/phi — used as a deterministic low-discrepancy sequence step. */
-    private static final double GOLDEN_FRAC_STEP = 0.6180339887;
+    private static final double[] HORIZON_COLOR     = {255, 150, 60};  // warm orange, low in the sky
+    private static final double[] DUSK_COLOR         = {35, 28, 80};   // deep dusk purple-blue, high up
+    private static final double[] GROUND_NEAR_COLOR  = {60, 28, 22};   // dark warm brown, close to camera
+    private static final double[] GROUND_FAR_COLOR   = {235, 120, 50}; // glowing orange at the horizon
+
+    // ========================= Scene dressing =========================
+
+    private static final int NUM_TREES = 6;
+    private static final int NUM_ACCENT_ROCKS = 8;
 
     // ========================= MP1 feature quality (kept active here) =========================
 
@@ -80,148 +82,233 @@ class MiniProject2Tests {
     /** Soft Shadow grid size: 3x3 = 9 shadow rays per light. */
     private static final int SS_SAMPLES = 3;
 
-    // ========================= Deterministic placement helper =========================
+    // ========================= Small math helpers =========================
 
-    /** Returns the fractional part of {@code x} — used to build a repeatable pseudo-random sequence. */
+    /** Fractional part of {@code x} — builds a repeatable, evenly-spread pseudo-random sequence. */
     private static double frac(double x) {
         return x - Math.floor(x);
+    }
+
+    /** Clamps {@code t} into [0,1]. */
+    private static double clamp01(double t) {
+        return Math.max(0, Math.min(1, t));
+    }
+
+    /** Linearly interpolates between two RGB triplets at parameter {@code t} (clamped to [0,1]). */
+    private static Color lerpColor(double r0, double g0, double b0,
+                                   double r1, double g1, double b1, double t) {
+        double tc = clamp01(t);
+        return new Color(r0 + (r1 - r0) * tc, g0 + (g1 - g0) * tc, b0 + (b1 - b0) * tc);
+    }
+
+    // ========================= Faceted surface builder =========================
+
+    /**
+     * Builds a faceted (flat-shaded, low-poly) surface from a grid of
+     * vertices: each grid cell becomes two triangles. {@code vertexFn} maps
+     * grid indices (col, row) to a 3D point (typically with some per-vertex
+     * jitter to break the surface into visible facets), and {@code colorFn}
+     * maps a triangle's centroid to its emission color (typically a
+     * position-based gradient).
+     *
+     * @param scene    the scene to add the surface to
+     * @param cols     number of grid cells along the first axis
+     * @param rows     number of grid cells along the second axis
+     * @param vertexFn maps (col, row) in [0..cols]x[0..rows] to a 3D point
+     * @param colorFn  maps a triangle centroid to its emission color
+     * @param material shared material for every triangle of the surface
+     */
+    private static void addFacetedSurface(Scene scene, int cols, int rows,
+                                          BiFunction<Integer, Integer, Point> vertexFn,
+                                          Function<Point, Color> colorFn,
+                                          Material material) {
+        Point[][] grid = new Point[rows + 1][cols + 1];
+        for (int r = 0; r <= rows; r++)
+            for (int c = 0; c <= cols; c++)
+                grid[r][c] = vertexFn.apply(c, r);
+
+        for (int r = 0; r < rows; r++) {
+            for (int c = 0; c < cols; c++) {
+                Point p00 = grid[r][c];
+                Point p01 = grid[r][c + 1];
+                Point p10 = grid[r + 1][c];
+                Point p11 = grid[r + 1][c + 1];
+
+                // Each triangle keeps one constant normal (no smoothing), and
+                // adjacent triangles sit at slightly different angles because
+                // of the per-vertex jitter — that mismatch in normals is
+                // exactly what produces the faceted "low-poly" shading look.
+                addFacetedTriangle(scene, p00, p01, p10, colorFn, material);
+                addFacetedTriangle(scene, p01, p11, p10, colorFn, material);
+            }
+        }
+    }
+
+    private static void addFacetedTriangle(Scene scene, Point a, Point b, Point c,
+                                           Function<Point, Color> colorFn, Material material) {
+        Point centroid = new Point(
+                (a.getX() + b.getX() + c.getX()) / 3,
+                (a.getY() + b.getY() + c.getY()) / 3,
+                (a.getZ() + b.getZ() + c.getZ()) / 3);
+        scene.geometries.add(new Triangle(a, b, c)
+                .setEmission(colorFn.apply(centroid))
+                .setMaterial(material));
     }
 
     // ========================= Scene Setup =========================
 
     /**
-     * Builds the "Asteroid Belt Observatory" scene used by all four
+     * Builds the "Low-Poly Savanna Sunset" scene used by all four
      * measurement tests below. Pure function of nothing but the constants
      * above — no external state, no randomness — so every call returns an
-     * identical scene, which is required for a fair BVH/MT comparison.
+     * identical scene, required for a fair BVH/MT comparison.
      *
      * @return a freshly built scene
      */
     private static Scene buildBvhDemoScene() {
-        Scene scene = new Scene("Asteroid Belt Observatory");
-        scene.setBackground(new Color(2, 2, 5));
-        scene.setAmbientLight(new AmbientLight(new Color(8, 8, 12), new Double3(1)));
+        Scene scene = new Scene("Low-Poly Savanna Sunset");
+        scene.setBackground(new Color(20, 14, 30));
+        scene.setAmbientLight(new AmbientLight(new Color(18, 12, 16), new Double3(1)));
 
-        // ── Backdrop plane — intentionally infinite/unbounded. Even when BVH
-        //    is enabled this geometry cannot be placed in the tree and must
-        //    always be tested directly (see Geometries.buildBVH()). ─────────
-        scene.geometries.add(new Plane(new Point(0, 0, -300), new Vector(0, 0, 1))
-                .setEmission(new Color(3, 3, 8))
-                .setMaterial(new Material().setKD(0.4).setKS(0.1).setShininess(10)));
+        Material facetMaterial = new Material().setKD(0.75).setKS(0.15).setShininess(25);
 
-        // ── Glowing core — also marked as a light source so shadow rays
-        //    ignore it (it should never shadow itself). ─────────────────────
-        scene.geometries.add(new Sphere(new Point(0, 0, 0), 22)
-                .setEmission(new Color(220, 160, 60))
-                .setMaterial(new Material().setKD(0.5).setKS(0.4).setShininess(60).setKR(0.1))
+        // ── Sky: a wide faceted wall of triangles, colored by height
+        //    (dusk purple high up, warm horizon glow down low). ─────────────
+        addFacetedSurface(scene, SKY_COLS, SKY_ROWS,
+                (c, r) -> {
+                    double x = SKY_X_MIN + (SKY_X_MAX - SKY_X_MIN) * c / (double) SKY_COLS;
+                    double y = SKY_BOTTOM_Y + (SKY_TOP_Y - SKY_BOTTOM_Y) * r / (double) SKY_ROWS;
+                    double jitterZ = (2 * frac(c * 0.37 + r * 0.61) - 1) * SKY_DEPTH_JITTER;
+                    return new Point(x, y, SKY_BASE_Z + jitterZ);
+                },
+                point -> {
+                    double t = clamp01((point.getY() - SKY_BOTTOM_Y) / (SKY_TOP_Y - SKY_BOTTOM_Y));
+                    double brightness = 0.9 + 0.2 * frac(point.getX() * 0.053 + point.getZ() * 0.029);
+                    return lerpColor(HORIZON_COLOR[0], HORIZON_COLOR[1], HORIZON_COLOR[2],
+                            DUSK_COLOR[0], DUSK_COLOR[1], DUSK_COLOR[2], t).scale(brightness);
+                },
+                facetMaterial);
+
+        // ── Ground: a wide faceted terrain, colored by depth (dark near the
+        //    camera, glowing orange toward the horizon where it meets the sky). ─
+        addFacetedSurface(scene, GROUND_COLS, GROUND_ROWS,
+                (c, r) -> {
+                    double x = SKY_X_MIN + (SKY_X_MAX - SKY_X_MIN) * c / (double) GROUND_COLS;
+                    double z = GROUND_NEAR_Z + (GROUND_FAR_Z - GROUND_NEAR_Z) * r / (double) GROUND_ROWS;
+                    double jitterY = (2 * frac(c * 0.53 + r * 0.19) - 1) * GROUND_HEIGHT_JITTER;
+                    return new Point(x, GROUND_BASE_Y + jitterY, z);
+                },
+                point -> {
+                    double t = clamp01((GROUND_NEAR_Z - point.getZ()) / (GROUND_NEAR_Z - GROUND_FAR_Z));
+                    double brightness = 0.9 + 0.2 * frac(point.getX() * 0.071 + point.getZ() * 0.043);
+                    return lerpColor(GROUND_NEAR_COLOR[0], GROUND_NEAR_COLOR[1], GROUND_NEAR_COLOR[2],
+                            GROUND_FAR_COLOR[0], GROUND_FAR_COLOR[1], GROUND_FAR_COLOR[2], t).scale(brightness);
+                },
+                facetMaterial);
+
+        // ── The setting sun — also the scene's main light source. ───────────
+        Point sunPosition = new Point(0, -25, SKY_BASE_Z + 15);
+        scene.geometries.add(new Sphere(sunPosition, 38)
+                .setEmission(new Color(255, 225, 150))
+                .setMaterial(new Material().setKD(0.3).setKS(0.2).setShininess(20).setKR(0.05))
                 .setLightSource());
 
-        // ── Ring of six reflective "planet" spheres around the core ───────
-        for (int i = 0; i < 6; i++) {
-            double angle = i * (2 * Math.PI / 6);
-            double x = 40 * Math.cos(angle);
-            double z = 40 * Math.sin(angle);
-            scene.geometries.add(new Sphere(new Point(x, 0, z), 8)
-                    .setEmission(new Color(60 + i * 20, 90, 160 - i * 15))
-                    .setMaterial(new Material().setKD(0.4).setKS(0.5).setShininess(100).setKR(0.3)));
+        // ── Silhouette acacia trees scattered near the horizon. ─────────────
+        for (int i = 0; i < NUM_TREES; i++) {
+            double x = -260 + i * 100 + 30 * (frac(i * 0.81) - 0.5);
+            double z = -180 - 60 * frac(i * 0.47);
+            addAcaciaTree(scene, new Point(x, GROUND_BASE_Y, z), 1.0 + 0.4 * frac(i * 0.29));
         }
 
-        // ── Asteroid belt — the main BVH stress-test: hundreds of small,
-        //    spatially scattered spheres. Placed on a golden-angle spiral so
-        //    they spread out evenly without ever repeating a pattern. ──────
-        for (int i = 0; i < NUM_ASTEROIDS; i++) {
-            double angle = i * GOLDEN_ANGLE;
-            double radial = BELT_INNER_RADIUS
-                    + (BELT_OUTER_RADIUS - BELT_INNER_RADIUS) * frac(i * GOLDEN_FRAC_STEP);
-            double height = (frac(i * 0.37) - 0.5) * BELT_THICKNESS;
-            double size = ASTEROID_MIN_RADIUS
-                    + (ASTEROID_MAX_RADIUS - ASTEROID_MIN_RADIUS) * frac(i * 0.74);
-
-            Point center = new Point(radial * Math.cos(angle), height, radial * Math.sin(angle));
-
-            Material material = (i % 3 == 0)
-                    ? new Material().setKD(0.3).setKS(0.5).setShininess(80).setKR(0.4)   // reflective
-                    : new Material().setKD(0.7).setKS(0.2).setShininess(20);             // matte
-
-            Color emission = new Color(
-                    90 + 60 * frac(i * 0.13),
-                    70 + 60 * frac(i * 0.29),
-                    60 + 60 * frac(i * 0.51));
-
-            scene.geometries.add(new Sphere(center, size).setEmission(emission).setMaterial(material));
+        // ── Foreground accent rocks — small reflective/glassy spheres near the
+        //    camera, formally exercising reflection and transparency, and
+        //    doubling as glints of light on the savanna floor. ───────────────
+        for (int i = 0; i < NUM_ACCENT_ROCKS; i++) {
+            double x = -180 + i * 50 + 20 * (frac(i * 0.62) - 0.5);
+            double z = 250 + 80 * frac(i * 0.37);
+            double size = 5 + 6 * frac(i * 0.91);
+            Material rockMaterial = (i % 2 == 0)
+                    ? new Material().setKD(0.1).setKS(0.6).setShininess(120).setKR(0.5)    // polished
+                    : new Material().setKD(0.05).setKS(0.5).setShininess(150).setKT(0.55); // glassy
+            scene.geometries.add(new Sphere(new Point(x, GROUND_BASE_Y + size * 0.6, z), size)
+                    .setEmission(new Color(180, 90, 40))
+                    .setMaterial(rockMaterial));
         }
 
-        // ── Crystal shards — glassy triangles, exercising transparency ────
-        for (int i = 0; i < NUM_CRYSTALS; i++) {
-            double angle = i * GOLDEN_ANGLE * 1.3;
-            double radial = CRYSTAL_INNER_RADIUS
-                    + (CRYSTAL_OUTER_RADIUS - CRYSTAL_INNER_RADIUS) * frac(i * GOLDEN_FRAC_STEP);
-            double height = (frac(i * 0.21) - 0.5) * 20;
+        // ── Five light sources, covering all four supported types ───────────
 
-            Point center = new Point(radial * Math.cos(angle), height, radial * Math.sin(angle));
+        // 1. Ambient — set above.
 
-            // Build a small flat triangle facing roughly outward from the core.
-            Vector vRight = new Vector(Math.cos(angle + Math.PI / 2), 0, Math.sin(angle + Math.PI / 2));
-            Vector vUp = Vector.AXIS_Y;
+        // 2. Directional — the low, raking sunset light responsible for the
+        //    strong per-facet highlight/shadow contrast across the terrain.
+        scene.lights.add(new DirectionalLight(new Color(180, 90, 40), new Vector(0.25, -0.2, 1)));
 
-            Point p1 = center.add(vRight.scale(CRYSTAL_SIZE));
-            Point p2 = center.add(vRight.scale(-CRYSTAL_SIZE / 2)).add(vUp.scale(CRYSTAL_SIZE * 0.87));
-            Point p3 = center.add(vRight.scale(-CRYSTAL_SIZE / 2)).add(vUp.scale(-CRYSTAL_SIZE * 0.87));
+        // 3. Point light — the sun itself; large soft-shadow size (big solar disc).
+        scene.lights.add(new PointLight(new Color(255, 200, 130), sunPosition)
+                .setKl(0.0004).setKq(0.000002).setSize(25));
 
-            scene.geometries.add(new Triangle(p1, p2, p3)
-                    .setEmission(new Color(40, 80, 140))
-                    .setMaterial(new Material().setKD(0.05).setKS(0.6).setShininess(150).setKT(0.6)));
-        }
+        // 4. Point light — cool fill light from the opposite side (classic
+        //    painter's trick: warm sun vs. cool shadow fill).
+        scene.lights.add(new PointLight(new Color(50, 70, 120), new Point(220, 120, 150))
+                .setKl(0.0007).setKq(0.000004).setSize(12));
 
-        // ── Structural pillars — finite cylinders, placed in a hexagon ─────
-        for (int i = 0; i < NUM_PILLARS; i++) {
-            double angle = i * (2 * Math.PI / NUM_PILLARS);
-            double x = PILLAR_RING_RADIUS * Math.cos(angle);
-            double z = PILLAR_RING_RADIUS * Math.sin(angle);
-            scene.geometries.add(new Cylinder(
-                    new Ray(new Point(x, -PILLAR_HEIGHT / 2, z), Vector.AXIS_Y),
-                    PILLAR_RADIUS, PILLAR_HEIGHT)
-                    .setEmission(new Color(50, 50, 60))
-                    .setMaterial(new Material().setKD(0.3).setKS(0.5).setShininess(90).setKR(0.5)));
-        }
-
-        // ── Five light sources, covering all four supported light types ───
-
-        // 1. Ambient — already set above.
-
-        // 2. Directional — distant "sunlight" raking across the whole scene.
-        scene.lights.add(new DirectionalLight(new Color(40, 35, 30), new Vector(-1, -0.6, -0.3)));
-
-        // 3. Point light — the core's own glow, with soft-shadow size.
-        scene.lights.add(new PointLight(new Color(255, 200, 120), new Point(0, 0, 0))
-                .setKl(0.0005).setKq(0.000003).setSize(15));
-
-        // 4. Point light — cool rim light from the opposite side, soft shadows.
-        scene.lights.add(new PointLight(new Color(80, 110, 200), new Point(-180, 90, -180))
-                .setKl(0.0008).setKq(0.000005).setSize(10));
-
-        // 5. Spot light — dramatic, focused highlight on the asteroid belt.
-        scene.lights.add(new SpotLight(new Color(255, 255, 255),
-                new Point(0, 160, 0), new Vector(0.3, -1, 0.3))
-                .setNarrowBeam(4).setKl(0.0003).setKq(0.000002).setSize(8));
+        // 5. Spot light — a focused "god ray" breaking through, for drama.
+        scene.lights.add(new SpotLight(new Color(255, 230, 180), new Point(40, 200, 0), new Vector(-0.2, -1, -0.3))
+                .setNarrowBeam(5).setKl(0.0003).setKq(0.000002).setSize(10));
 
         return scene;
+    }
+
+    /**
+     * Adds a simple silhouette acacia tree: a thin trunk and two overlapping
+     * flat canopy triangles, all in near-black tones so they read as
+     * silhouettes against the bright sky.
+     */
+    private static void addAcaciaTree(Scene scene, Point base, double scale) {
+        Material silhouette = new Material().setKD(0.5).setKS(0.05).setShininess(5);
+        Color trunkColor = new Color(18, 12, 8);
+        Color canopyColor = new Color(22, 16, 10);
+
+        double trunkWidth = 1.5 * scale;
+        double trunkHeight = 14 * scale;
+
+        scene.geometries.add(new Triangle(
+                base.add(new Vector(-trunkWidth, 0.01, 0)),
+                base.add(new Vector(trunkWidth, 0.01, 0)),
+                base.add(new Vector(0, trunkHeight, 0)))
+                .setEmission(trunkColor).setMaterial(silhouette));
+
+        Point crown = base.add(new Vector(0, trunkHeight, 0));
+        double canopyWidth = 16 * scale;
+        double canopyHeight = 9 * scale;
+
+        scene.geometries.add(new Triangle(
+                crown.add(new Vector(-canopyWidth, canopyHeight * 0.3, -1)),
+                crown.add(new Vector(canopyWidth, canopyHeight * 0.3, -1)),
+                crown.add(new Vector(0, canopyHeight, -1)))
+                .setEmission(canopyColor).setMaterial(silhouette));
+
+        scene.geometries.add(new Triangle(
+                crown.add(new Vector(-canopyWidth * 1.3, canopyHeight * 0.5, 1)),
+                crown.add(new Vector(canopyWidth * 1.3, canopyHeight * 0.5, 1)),
+                crown.add(new Vector(0, canopyHeight * 0.75, 1)))
+                .setEmission(canopyColor).setMaterial(silhouette));
     }
 
     // ========================= Camera Setup =========================
 
     /**
-     * Creates a {@link Camera.Builder} pre-configured for the asteroid belt scene.
-     * Resolution is moderate by default — raise it for the final submission image.
+     * Creates a {@link Camera.Builder} pre-configured for the savanna scene,
+     * framed wide (16:9-ish) to suit a landscape composition.
      */
     private static Camera.Builder buildCameraBuilder(Scene scene, SimpleRayTracer rayTracer) {
         return Camera.getBuilder()
                 .setRayTracer(scene, rayTracer)
-                .setLocation(new Point(0, 180, 420))
-                .setDirection(new Point(0, 0, 0), Vector.AXIS_Y)
-                .setVpDistance(350)
-                .setVpSize(280, 280)
-                .setResolution(500, 500)
+                .setLocation(new Point(0, 45, 480))
+                .setDirection(new Point(0, 25, -140), Vector.AXIS_Y)
+                .setVpDistance(380)
+                .setVpSize(380, 214)
+                .setResolution(640, 360)
                 .setDebugPrint(5);
     }
 
@@ -233,12 +320,6 @@ class MiniProject2Tests {
      * milliseconds. Used by all four mandatory measurement tests below, plus
      * the optional aggregate report, so the timing/printing logic is written
      * exactly once (DRY).
-     *
-     * @param useBVH  whether to call {@code scene.geometries.buildBVH()} before rendering
-     * @param threads multithreading parameter, passed directly to {@code Camera.Builder.setMultithreading}
-     * @param label   human-readable description printed to the console
-     * @param fileName output image file name (without extension)
-     * @return elapsed render time in milliseconds
      */
     private static long runMeasurement(boolean useBVH, int threads, String label, String fileName) {
         Scene scene = buildBvhDemoScene();
@@ -262,8 +343,6 @@ class MiniProject2Tests {
     }
 
     // ========================= Mandatory Measurement Configurations =========================
-    // Per the assignment: each configuration is its own test method, with a
-    // name that clearly states what is active and what is disabled.
 
     /** Configuration 1 — baseline: BVH disabled, multithreading disabled. */
     @Test
@@ -293,9 +372,7 @@ class MiniProject2Tests {
 
     /**
      * Convenience test that runs all four configurations back-to-back and
-     * prints a single comparison table — useful for quickly building the
-     * MEASUREMENTS report. Not a replacement for the four separate tests
-     * above (which remain the graded, individually named configurations).
+     * prints a single comparison table.
      */
     @Test
     void measurement_FullComparisonReport() {
@@ -317,4 +394,16 @@ class MiniProject2Tests {
     private static double ratio(long baseline, long current) {
         return current == 0 ? Double.POSITIVE_INFINITY : (double) baseline / current;
     }
-}
+
+    }
+
+
+
+
+
+
+
+
+
+
+
