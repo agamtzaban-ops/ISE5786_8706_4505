@@ -317,4 +317,39 @@ class MiniProject2Tests {
     private static double ratio(long baseline, long current) {
         return current == 0 ? Double.POSITIVE_INFINITY : (double) baseline / current;
     }
+
+    // ========================= Final Presentation Image =========================
+
+    /**
+     * Renders the definitive high-quality presentation image used in the submission.
+     * BVH and multi-threading are both enabled (fastest possible configuration);
+     * Anti-Aliasing and Soft Shadows are raised to production quality (9×9 each)
+     * to satisfy the "Mini-Project 1 at max quality" requirement.
+     *
+     * <p>This test is intentionally separate from the timing measurements above —
+     * it does not measure render time, it produces the best-looking image.</p>
+     */
+    @Test
+    void renderFinalPresentationImage() {
+        Scene scene = buildBvhDemoScene();
+        scene.geometries.buildBVH();
+
+        SimpleRayTracer rayTracer = new SimpleRayTracer(scene)
+                .setSoftShadowSamples(9)
+                .setSamplingPattern(Blackboard.SamplingPattern.JITTERED);
+
+        Camera.getBuilder()
+                .setRayTracer(scene, rayTracer)
+                .setLocation(new Point(0, 180, 420))
+                .setDirection(new Point(0, 0, 0), Vector.AXIS_Y)
+                .setVpDistance(350)
+                .setVpSize(280, 280)
+                .setResolution(800, 800)
+                .setAntiAliasingSamples(9)
+                .setMultithreading(-2)
+                .setDebugPrint(1)
+                .build()
+                .renderImage()
+                .writeToImage("mp2_final_presentation");
+    }
 }
