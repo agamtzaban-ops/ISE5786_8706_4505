@@ -42,13 +42,9 @@ class MiniProject2Tests {
     MiniProject2Tests() {}
 
     // ========================= Scene-size constants =========================
-    // Tunable knobs, not hard-coded magic numbers scattered through the code.
-    // Increase NUM_ASTEROIDS / resolution if the baseline (Config 1) render
-    // finishes in well under ~20 seconds on your machine — a too-fast
-    // baseline makes the speedup ratio unreliable to measure.
 
     /** Number of small spheres in the asteroid belt — the main BVH stress-test. */
-    private static final int NUM_ASTEROIDS = 400;
+    private static final int NUM_ASTEROIDS = 800;
     /** Number of glassy triangular crystal shards (transparency exercise). */
     private static final int NUM_CRYSTALS = 150;
     /** Number of structural cylinder pillars. */
@@ -73,12 +69,23 @@ class MiniProject2Tests {
     /** Fractional part of 1/phi — used as a deterministic low-discrepancy sequence step. */
     private static final double GOLDEN_FRAC_STEP = 0.6180339887;
 
-    // ========================= MP1 feature quality (kept active here) =========================
+    // ========================= Rendering-quality constants =========================
+    // Timing measurements use minimal sampling (AA=1, SS=1) so that the
+    // baseline (no BVH, single thread) finishes in ~30-60 s rather than hours.
+    // A 9x9 quality for EVERY pixel × 5 lights × 9 shadow rays × 900+ geometries
+    // with no acceleration is ~50 billion operations — not a fair baseline.
+    // The final presentation image uses full quality (AA=9, SS=9) to demonstrate
+    // MP1 at its best; that test runs with BVH+MT so it stays fast.
 
-    /** Anti-Aliasing grid size: 3x3 = 9 rays/pixel — enough to visibly smooth edges. */
-    private static final int AA_SAMPLES = 3;
-    /** Soft Shadow grid size: 3x3 = 9 shadow rays per light. */
-    private static final int SS_SAMPLES = 3;
+    /** AA samples for the four timing-measurement tests (1 = off). */
+    private static final int TIMING_AA = 1;
+    /** Soft-shadow samples for the four timing-measurement tests (1 = hard shadows). */
+    private static final int TIMING_SS = 1;
+
+    /** AA samples for the final high-quality presentation image. */
+    private static final int FINAL_AA = 9;
+    /** Soft-shadow samples for the final high-quality presentation image. */
+    private static final int FINAL_SS = 9;
 
     // ========================= Deterministic placement helper =========================
 
@@ -245,11 +252,11 @@ class MiniProject2Tests {
         if (useBVH) scene.geometries.buildBVH();
 
         SimpleRayTracer rayTracer = new SimpleRayTracer(scene)
-                .setSoftShadowSamples(SS_SAMPLES)
+                .setSoftShadowSamples(TIMING_SS)
                 .setSamplingPattern(Blackboard.SamplingPattern.JITTERED);
 
         Camera camera = buildCameraBuilder(scene, rayTracer)
-                .setAntiAliasingSamples(AA_SAMPLES)
+                .setAntiAliasingSamples(TIMING_AA)
                 .setMultithreading(threads)
                 .build();
 
@@ -335,7 +342,7 @@ class MiniProject2Tests {
         scene.geometries.buildBVH();
 
         SimpleRayTracer rayTracer = new SimpleRayTracer(scene)
-                .setSoftShadowSamples(9)
+                .setSoftShadowSamples(FINAL_SS)
                 .setSamplingPattern(Blackboard.SamplingPattern.JITTERED);
 
         Camera.getBuilder()
@@ -345,7 +352,7 @@ class MiniProject2Tests {
                 .setVpDistance(350)
                 .setVpSize(280, 280)
                 .setResolution(800, 800)
-                .setAntiAliasingSamples(9)
+                .setAntiAliasingSamples(FINAL_AA)
                 .setMultithreading(-2)
                 .setDebugPrint(1)
                 .build()
