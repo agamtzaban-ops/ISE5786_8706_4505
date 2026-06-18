@@ -308,7 +308,7 @@ class MiniProject2Tests {
                 .setDirection(new Point(0, 25, -140), Vector.AXIS_Y)
                 .setVpDistance(380)
                 .setVpSize(380, 214)
-                .setResolution(640, 360)
+                .setResolution(100, 56)
                 .setDebugPrint(5);
     }
 
