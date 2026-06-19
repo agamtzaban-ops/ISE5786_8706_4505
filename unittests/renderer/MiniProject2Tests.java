@@ -54,7 +54,7 @@ class MiniProject2Tests {
     private static final int TIMING_AA = 1; // off during timing
     private static final int TIMING_SS = 1; // hard shadows during timing
     private static final int FINAL_AA  = 9; // 9×9 for the presentation image
-    private static final int FINAL_SS  = 9;
+    private static final int FINAL_SS  = 3; // 3×3 soft shadows — sweet-spot for speed vs quality
 
     // ========================= Helpers =========================
 
@@ -337,7 +337,7 @@ class MiniProject2Tests {
                 .setDirection(new Point(-45, -22, -100), Vector.AXIS_Y)
                 .setVpDistance(350)
                 .setVpSize(490, 308)
-                .setResolution(900, 562)
+                .setResolution(750, 469)
                 .setAntiAliasingSamples(FINAL_AA)
                 .setMultithreading(-2)
                 .setDebugPrint(1)
