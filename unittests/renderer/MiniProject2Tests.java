@@ -78,19 +78,19 @@ class MiniProject2Tests {
             Math.min(255, (int)( 5  + t * 13 + rf *  5)));
     }
 
-    /** Sky gradient: t=0 → warm orange at horizon; t=1 → cool purple at zenith. */
+    /** Sky gradient: t=0 → bright orange at horizon; t=1 → deep blood-red at zenith. */
     private static Color skyC(double t) {
         return new Color(
-            (int)(215 * (1 - t) + 16 * t),
-            (int)( 85 * (1 - t) +  6 * t),
-            (int)( 12 * (1 - t) + 55 * t));
+            (int)(220 * (1 - t) + 58 * t),
+            (int)( 88 * (1 - t) + 12 * t),
+            (int)( 14 * (1 - t) +  4 * t));
     }
 
     // ========================= Scene =========================
 
     private static Scene buildScene() {
         Scene scene = new Scene("Savanna Sunset");
-        scene.setBackground(new Color(16, 7, 38));
+        scene.setBackground(new Color(40, 10, 3));
         scene.setAmbientLight(new AmbientLight(new Color(52, 26, 10), new Double3(1)));
 
         Material flat  = new Material().setKD(0.92).setKS(0.05).setShininess(4);
@@ -101,7 +101,7 @@ class MiniProject2Tests {
         // ── Backdrop plane (infinite → stays outside BVH) ─────────────────
         scene.geometries.add(
             new Plane(new Point(0, 0, -700), new Vector(0, 0, 1))
-                .setEmission(new Color(10, 5, 28)).setMaterial(skyM));
+                .setEmission(new Color(38, 10, 4)).setMaterial(skyM));
 
         // ── Sun — glowing emissive sphere; marked as light source so
         //    shadow rays from the terrain do not hit it ─────────────────────
@@ -196,8 +196,8 @@ class MiniProject2Tests {
         }
 
         // ── Reflective water pool — flat mirror in the foreground ────────────
-        Material water = new Material().setKD(0.15).setKS(0.85).setShininess(120).setKR(0.65);
-        Color waterE   = new Color(8, 18, 32);
+        Material water = new Material().setKD(0.25).setKS(0.75).setShininess(100).setKR(0.55);
+        Color waterE   = new Color(30, 12, 5);
         double wy = BASE_Y + 0.5;                    // just above ground level
         scene.geometries.add(new Triangle(
             new Point(-110, wy,  90), new Point( 110, wy,  90), new Point( 110, wy, 235))
