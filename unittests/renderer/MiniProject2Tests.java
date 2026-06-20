@@ -108,6 +108,8 @@ class MiniProject2Tests {
     // Directional light is (-0.8,-0.38,0.4) so light comes FROM (0.8,0,-0.4).
     // Normalized XZ component toward sun used for per-face sun tinting.
     private static final double SUN_HORIZ_X = 0.8944, SUN_HORIZ_Z = -0.4472;
+    // Full 3D sun direction: normalize(0.8, 0.38, -0.4)
+    private static final double SUN3D_X = 0.8231, SUN3D_Y = 0.3910, SUN3D_Z = -0.4116;
 
     /**
      * Ribbed cactus trunk as a (2*nRibs)-sided prism.
@@ -122,7 +124,7 @@ class MiniProject2Tests {
                                         Material mat) {
         int N = nRibs * 2;
         double[] vx = new double[N], vz = new double[N];
-        double ridgeR = radius + 1.0, valleyR = Math.max(0.5, radius - 0.6);
+        double ridgeR = radius + 1.4, valleyR = Math.max(0.5, radius - 0.9);
         for (int i = 0; i < N; i++) {
             double a = 2 * Math.PI * i / N;
             double r = (i % 2 == 0) ? ridgeR : valleyR;
@@ -138,11 +140,11 @@ class MiniProject2Tests {
             // How much this face points toward the sun (−1 = full shadow, +1 = full sun)
             double sunDot = (midX/mag) * SUN_HORIZ_X + (midZ/mag) * SUN_HORIZ_Z;
             double t = Math.max(0, Math.min(1, (sunDot + 1) / 2.0));
-            // Warm yellow-green on lit side, cool blue-green on shadow side
+            // Deep blue-green in shadow valleys → vivid yellow-green on sun ridges
             Color fc = new Color(
-                (int)(18 + t * 32),   // R: 18 (shadow) → 50 (sun)
-                (int)(68 + t * 45),   // G: 68 → 113
-                (int)(35 - t *  8));  // B: 35 (cool shadow) → 27 (warm sun)
+                (int)(10 + t * 65),   // R: 10 (shadow) → 75 (sun)
+                (int)(42 + t * 108),  // G: 42 → 150
+                (int)(32 - t *  12)); // B: 32 (cool) → 20 (warm)
             Point bl = new Point(vx[i], cy,          vz[i]);
             Point br = new Point(vx[j], cy,          vz[j]);
             Point tl = new Point(vx[i], cy + height, vz[i]);
@@ -161,6 +163,70 @@ class MiniProject2Tests {
                 new Point(vx[j], cy + height, vz[j]),
                 new Point(vx[i], cy + height, vz[i]))
                 .setEmission(topC).setMaterial(mat));
+        }
+    }
+
+    /**
+     * Ribbed arm segment as a (2*nRibs)-sided prism oriented along an arbitrary direction.
+     * Cross-section basis is computed via Gram-Schmidt from (0,0,1), giving ribs
+     * that are visible from the front camera for all arm orientations in the XY plane.
+     * Each face is tinted by its full-3D dot-product with the sun direction.
+     */
+    private static void addRibbedArm(Scene scene,
+                                      double fromX, double fromY, double fromZ,
+                                      double dirX,  double dirY,  double dirZ,
+                                      double radius, double length, int nRibs, Material mat) {
+        double dMag = Math.sqrt(dirX*dirX + dirY*dirY + dirZ*dirZ);
+        double dx = dirX/dMag, dy = dirY/dMag, dz = dirZ/dMag;
+
+        // u ⊥ d via Gram-Schmidt from (0,0,1); fall back to (1,0,0) if d≈(0,0,±1)
+        double ux = 0, uy = 0, uz = 1;
+        if (Math.abs(dz) > 0.9) { ux = 1; uy = 0; uz = 0; }
+        double dot = ux*dx + uy*dy + uz*dz;
+        ux -= dot*dx; uy -= dot*dy; uz -= dot*dz;
+        double uMag = Math.sqrt(ux*ux + uy*uy + uz*uz);
+        ux /= uMag; uy /= uMag; uz /= uMag;
+
+        // v = d × u  (completes right-hand frame)
+        double vx = dy*uz - dz*uy, vy = dz*ux - dx*uz, vz2 = dx*uy - dy*ux;
+
+        int N = nRibs * 2;
+        double ridgeR = radius + 0.6, valleyR = Math.max(0.2, radius - 0.4);
+        double[] bx=new double[N], by=new double[N], bz2=new double[N];
+        double[] ex=new double[N], ey=new double[N], ez2=new double[N];
+        double endX = fromX+dx*length, endY = fromY+dy*length, endZ = fromZ+dz*length;
+
+        for (int i = 0; i < N; i++) {
+            double a = 2*Math.PI*i/N;
+            double r = (i%2==0) ? ridgeR : valleyR;
+            double ca = Math.cos(a), sa = Math.sin(a);
+            double ox = r*(ca*ux + sa*vx), oy = r*(ca*uy + sa*vy), oz = r*(ca*uz + sa*vz2);
+            bx[i]=fromX+ox; by[i]=fromY+oy; bz2[i]=fromZ+oz;
+            ex[i]=endX+ox;  ey[i]=endY+oy;  ez2[i]=endZ+oz;
+        }
+        for (int i = 0; i < N; i++) {
+            int j = (i+1)%N;
+            // Outward normal = midpoint offset minus its d-component
+            double mox=(bx[i]+bx[j])/2-fromX, moy=(by[i]+by[j])/2-fromY, moz=(bz2[i]+bz2[j])/2-fromZ;
+            double dDot = mox*dx + moy*dy + moz*dz;
+            double nx=mox-dDot*dx, ny=moy-dDot*dy, nz=moz-dDot*dz;
+            double nm = Math.sqrt(nx*nx+ny*ny+nz*nz);
+            if (nm < 1e-9) continue;
+            double sunDot = (nx/nm)*SUN3D_X + (ny/nm)*SUN3D_Y + (nz/nm)*SUN3D_Z;
+            double t = Math.max(0, Math.min(1, (sunDot+1)/2.0));
+            Color fc = new Color(
+                (int)(10 + t * 65),
+                (int)(42 + t * 108),
+                (int)(32 - t *  12));
+            // Winding Triangle(base_i, end_j, base_j) gives outward normals (verified)
+            scene.geometries.add(new Triangle(
+                new Point(bx[i],by[i],bz2[i]),
+                new Point(ex[j],ey[j],ez2[j]),
+                new Point(bx[j],by[j],bz2[j])).setEmission(fc).setMaterial(mat));
+            scene.geometries.add(new Triangle(
+                new Point(bx[i],by[i],bz2[i]),
+                new Point(ex[i],ey[i],ez2[i]),
+                new Point(ex[j],ey[j],ez2[j])).setEmission(fc).setMaterial(mat));
         }
     }
 
@@ -373,14 +439,9 @@ class MiniProject2Tests {
                 .setEmission(boulderC).setMaterial(boulderM));
         }
 
-        // ── Saguaro cacti — 5 ribbed trunks with 2-segment curved arms ───
+        // ── Saguaro cacti — 5 ribbed trunks with 2-segment ribbed arms ───
         //   + 2 barrel cacti + 2 desert shrubs
-        //
-        // Trunks use addRibbedTrunk(): 12-sided alternating ridge/valley prism
-        // with per-face sun/shadow tinting.  Arms remain smooth Cylinders —
-        // the directional light naturally shades their curved surfaces.
         {
-            Color armC = new Color(35, 98, 26);
             double[][] saguaroPos = {
                 {-168,65},{-108,98},{52,40},{165,62},{238,90}
             };
@@ -389,39 +450,35 @@ class MiniProject2Tests {
                 final double cy = BASE_Y + terrH(cx, cz);
                 final double tH = 55 + frac(cx*0.13+cz*0.19)*30;
 
-                // Ribbed trunk: 6 ribs = 12 sides
-                addRibbedTrunk(scene, cx, cy, cz, 4.0, tH, 6, cactM);
+                // Ribbed trunk: 8 ribs = 16 sides (rounder appearance)
+                addRibbedTrunk(scene, cx, cy, cz, 4.5, tH, 8, cactM);
 
-                // Left arm (2-segment elbow)
+                // Left arm (2-segment elbow) — ribbed prism arms
                 final double laY  = cy + tH*0.50;
                 final double laL1 = 14 + frac(cx*0.31+cz*0.19)*8;
                 final double laL2 = 13 + frac(cx*0.19+cz*0.27)*7;
-                final double la1x=-0.9060, la1y=0.4229;
-                final double elXL=cx+la1x*laL1, elYL=laY+la1y*laL1;
-                scene.geometries.add(new Cylinder(
-                    new Ray(new Point(cx,laY,cz), new Vector(-0.90,0.42,0).normalize()),
-                    2.8, laL1).setEmission(armC).setMaterial(cactM));
-                scene.geometries.add(new Cylinder(
-                    new Ray(new Point(elXL,elYL,cz), new Vector(-0.40,0.92,0).normalize()),
-                    2.6, laL2).setEmission(armC).setMaterial(cactM));
+                final double elXL = cx + (-0.9060)*laL1, elYL = laY + 0.4229*laL1;
+                addRibbedArm(scene, cx, laY, cz, -0.9060, 0.4229, 0, 2.8, laL1, 4, cactM);
+                addRibbedArm(scene, elXL, elYL, cz, -0.40, 0.92, 0, 2.5, laL2, 4, cactM);
+                scene.geometries.add(new Sphere(
+                    new Point(elXL+(-0.40)*laL2, elYL+0.92*laL2, cz), 2.5)
+                    .setEmission(new Color(10,50,28)).setMaterial(cactM));
 
-                // Right arm (2-segment elbow)
+                // Right arm (2-segment elbow) — ribbed prism arms
                 final double raY  = cy + tH*0.42;
                 final double raL1 = 12 + frac(cx*0.27+cz*0.35)*8;
                 final double raL2 = 11 + frac(cx*0.35+cz*0.21)*6;
-                final double ra1x=0.8829, ra1y=0.4694;
-                final double elXR=cx+ra1x*raL1, elYR=raY+ra1y*raL1;
-                scene.geometries.add(new Cylinder(
-                    new Ray(new Point(cx,raY,cz), new Vector(0.88,0.47,0).normalize()),
-                    2.8, raL1).setEmission(armC).setMaterial(cactM));
-                scene.geometries.add(new Cylinder(
-                    new Ray(new Point(elXR,elYR,cz), new Vector(0.38,0.93,0).normalize()),
-                    2.6, raL2).setEmission(armC).setMaterial(cactM));
+                final double elXR = cx + 0.8829*raL1, elYR = raY + 0.4694*raL1;
+                addRibbedArm(scene, cx, raY, cz, 0.8829, 0.4694, 0, 2.8, raL1, 4, cactM);
+                addRibbedArm(scene, elXR, elYR, cz, 0.38, 0.93, 0, 2.5, raL2, 4, cactM);
+                scene.geometries.add(new Sphere(
+                    new Point(elXR+0.38*raL2, elYR+0.93*raL2, cz), 2.5)
+                    .setEmission(new Color(10,50,28)).setMaterial(cactM));
             }
 
-            // Barrel cacti — short, wide, dome-capped
-            addBarrelCactus(scene, -40, BASE_Y+terrH(-40,-12), -12, 7.5, 18, cactM);
-            addBarrelCactus(scene,  95, BASE_Y+terrH( 95, 35),  35, 6.0, 14, cactM);
+            // Barrel cacti — bigger so they're clearly visible
+            addBarrelCactus(scene, -40, BASE_Y+terrH(-40,-12), -12,  9.0, 24, cactM);
+            addBarrelCactus(scene,  95, BASE_Y+terrH( 95, 35),  35,  7.5, 19, cactM);
 
             // Desert shrubs — small sphere clusters for ground cover
             Material shrubM = new Material().setKD(0.75).setKS(0.12).setShininess(8);
