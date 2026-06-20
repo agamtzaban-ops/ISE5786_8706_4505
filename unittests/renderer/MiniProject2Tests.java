@@ -103,6 +103,84 @@ class MiniProject2Tests {
         return scale * env * Math.max(0, n + 0.45);
     }
 
+    // ========================= Cactus geometry helpers =========================
+
+    // Directional light is (-0.8,-0.38,0.4) so light comes FROM (0.8,0,-0.4).
+    // Normalized XZ component toward sun used for per-face sun tinting.
+    private static final double SUN_HORIZ_X = 0.8944, SUN_HORIZ_Z = -0.4472;
+
+    /**
+     * Ribbed cactus trunk as a (2*nRibs)-sided prism.
+     *
+     * Alternating ridge/valley radii (R+1.0 / R-0.6) create the classic
+     * saguaro rib texture in low-poly style.  Each rectangular face is tinted
+     * warm yellow-green on the sun side and cool blue-green on the shadow side,
+     * computed from the face's outward normal dotted against the sun direction.
+     */
+    private static void addRibbedTrunk(Scene scene, double cx, double cy, double cz,
+                                        double radius, double height, int nRibs,
+                                        Material mat) {
+        int N = nRibs * 2;
+        double[] vx = new double[N], vz = new double[N];
+        double ridgeR = radius + 1.0, valleyR = Math.max(0.5, radius - 0.6);
+        for (int i = 0; i < N; i++) {
+            double a = 2 * Math.PI * i / N;
+            double r = (i % 2 == 0) ? ridgeR : valleyR;
+            vx[i] = cx + r * Math.cos(a);
+            vz[i] = cz + r * Math.sin(a);
+        }
+        for (int i = 0; i < N; i++) {
+            int j = (i + 1) % N;
+            double midX = (vx[i] + vx[j]) / 2 - cx;
+            double midZ = (vz[i] + vz[j]) / 2 - cz;
+            double mag  = Math.sqrt(midX*midX + midZ*midZ);
+            if (mag < 1e-9) continue;
+            // How much this face points toward the sun (−1 = full shadow, +1 = full sun)
+            double sunDot = (midX/mag) * SUN_HORIZ_X + (midZ/mag) * SUN_HORIZ_Z;
+            double t = Math.max(0, Math.min(1, (sunDot + 1) / 2.0));
+            // Warm yellow-green on lit side, cool blue-green on shadow side
+            Color fc = new Color(
+                (int)(18 + t * 32),   // R: 18 (shadow) → 50 (sun)
+                (int)(68 + t * 45),   // G: 68 → 113
+                (int)(35 - t *  8));  // B: 35 (cool shadow) → 27 (warm sun)
+            Point bl = new Point(vx[i], cy,          vz[i]);
+            Point br = new Point(vx[j], cy,          vz[j]);
+            Point tl = new Point(vx[i], cy + height, vz[i]);
+            Point tr = new Point(vx[j], cy + height, vz[j]);
+            // Winding that gives outward normals (verified analytically)
+            scene.geometries.add(new Triangle(bl, tr, br).setEmission(fc).setMaterial(mat));
+            scene.geometries.add(new Triangle(bl, tl, tr).setEmission(fc).setMaterial(mat));
+        }
+        // Top cap — fan from center, CCW from above → upward normals
+        Color topC = new Color(42, 112, 35);
+        Point topPt = new Point(cx, cy + height, cz);
+        for (int i = 0; i < N; i++) {
+            int j = (i + 1) % N;
+            scene.geometries.add(new Triangle(
+                topPt,
+                new Point(vx[j], cy + height, vz[j]),
+                new Point(vx[i], cy + height, vz[i]))
+                .setEmission(topC).setMaterial(mat));
+        }
+    }
+
+    /** Short wide barrel cactus: ribbed prism + dome sphere cap. */
+    private static void addBarrelCactus(Scene scene, double cx, double cy, double cz,
+                                         double radius, double height, Material mat) {
+        addRibbedTrunk(scene, cx, cy, cz, radius, height, 8, mat);
+        scene.geometries.add(new Sphere(new Point(cx, cy + height, cz), radius * 0.75)
+            .setEmission(new Color(35, 100, 25)).setMaterial(mat));
+    }
+
+    /** Small desert shrub — cluster of four dark-green spheres. */
+    private static void addShrub(Scene scene, double cx, double cy, double cz, Material mat) {
+        Color c = new Color(28, 62, 18);
+        scene.geometries.add(new Sphere(new Point(cx,   cy+3.5, cz),    5.0).setEmission(c).setMaterial(mat));
+        scene.geometries.add(new Sphere(new Point(cx-4, cy+2.5, cz+2),  3.8).setEmission(c).setMaterial(mat));
+        scene.geometries.add(new Sphere(new Point(cx+3, cy+2.5, cz-2),  3.5).setEmission(c).setMaterial(mat));
+        scene.geometries.add(new Sphere(new Point(cx+1, cy+2.0, cz+3.5),3.0).setEmission(c).setMaterial(mat));
+    }
+
     // ========================= Scene =========================
 
     private static Scene buildScene() {
@@ -295,60 +373,60 @@ class MiniProject2Tests {
                 .setEmission(boulderC).setMaterial(boulderM));
         }
 
-        // ── Saguaro cacti — 6 x (trunk + 2x2-segment curved arms) ────────
+        // ── Saguaro cacti — 5 ribbed trunks with 2-segment curved arms ───
+        //   + 2 barrel cacti + 2 desert shrubs
         //
-        // Each arm has two cylinder segments forming an elbow:
-        //   shoulder: mostly horizontal (~24 deg upward)
-        //   forearm:  mostly vertical (~65 deg upward)
-        // This produces the classic cactus S-curve shape vs. the 90-degree
-        // right-angle of a single-segment arm.
-        Color cactusC = new Color(38, 110, 28);
-        double[][] cactPos = {
-            {-168,65},{-108,98},{52,40},{165,62},{-40,-12},{238,90}
-        };
-        for (double[] cp : cactPos) {
-            final double cx=cp[0], cz=cp[1];
-            final double cy = BASE_Y + terrH(cx, cz);
-            final double tH = 55 + frac(cx*0.13+cz*0.19)*30;
+        // Trunks use addRibbedTrunk(): 12-sided alternating ridge/valley prism
+        // with per-face sun/shadow tinting.  Arms remain smooth Cylinders —
+        // the directional light naturally shades their curved surfaces.
+        {
+            Color armC = new Color(35, 98, 26);
+            double[][] saguaroPos = {
+                {-168,65},{-108,98},{52,40},{165,62},{238,90}
+            };
+            for (double[] cp : saguaroPos) {
+                final double cx=cp[0], cz=cp[1];
+                final double cy = BASE_Y + terrH(cx, cz);
+                final double tH = 55 + frac(cx*0.13+cz*0.19)*30;
 
-            // Trunk
-            scene.geometries.add(new Cylinder(
-                new Ray(new Point(cx, cy, cz), Vector.AXIS_Y), 4.5, tH)
-                .setEmission(cactusC).setMaterial(cactM));
+                // Ribbed trunk: 6 ribs = 12 sides
+                addRibbedTrunk(scene, cx, cy, cz, 4.0, tH, 6, cactM);
 
-            // Left arm
-            {
-                final double laY  = cy + tH * 0.50;
-                final double laL1 = 14 + frac(cx*0.31 + cz*0.19) * 8;  // shoulder
-                final double laL2 = 13 + frac(cx*0.19 + cz*0.27) * 7;  // forearm
-                // Shoulder dir normalized: (-0.90, 0.42, 0) -> (-0.9060, 0.4229, 0)
-                final double la1x = -0.9060, la1y = 0.4229;
-                final double elX = cx + la1x*laL1, elY = laY + la1y*laL1;
+                // Left arm (2-segment elbow)
+                final double laY  = cy + tH*0.50;
+                final double laL1 = 14 + frac(cx*0.31+cz*0.19)*8;
+                final double laL2 = 13 + frac(cx*0.19+cz*0.27)*7;
+                final double la1x=-0.9060, la1y=0.4229;
+                final double elXL=cx+la1x*laL1, elYL=laY+la1y*laL1;
                 scene.geometries.add(new Cylinder(
-                    new Ray(new Point(cx, laY, cz), new Vector(-0.90, 0.42, 0).normalize()),
-                    2.8, laL1).setEmission(cactusC).setMaterial(cactM));
-                // Forearm dir normalized: (-0.40, 0.92, 0) -> mostly vertical
+                    new Ray(new Point(cx,laY,cz), new Vector(-0.90,0.42,0).normalize()),
+                    2.8, laL1).setEmission(armC).setMaterial(cactM));
                 scene.geometries.add(new Cylinder(
-                    new Ray(new Point(elX, elY, cz), new Vector(-0.40, 0.92, 0).normalize()),
-                    2.6, laL2).setEmission(cactusC).setMaterial(cactM));
+                    new Ray(new Point(elXL,elYL,cz), new Vector(-0.40,0.92,0).normalize()),
+                    2.6, laL2).setEmission(armC).setMaterial(cactM));
+
+                // Right arm (2-segment elbow)
+                final double raY  = cy + tH*0.42;
+                final double raL1 = 12 + frac(cx*0.27+cz*0.35)*8;
+                final double raL2 = 11 + frac(cx*0.35+cz*0.21)*6;
+                final double ra1x=0.8829, ra1y=0.4694;
+                final double elXR=cx+ra1x*raL1, elYR=raY+ra1y*raL1;
+                scene.geometries.add(new Cylinder(
+                    new Ray(new Point(cx,raY,cz), new Vector(0.88,0.47,0).normalize()),
+                    2.8, raL1).setEmission(armC).setMaterial(cactM));
+                scene.geometries.add(new Cylinder(
+                    new Ray(new Point(elXR,elYR,cz), new Vector(0.38,0.93,0).normalize()),
+                    2.6, raL2).setEmission(armC).setMaterial(cactM));
             }
 
-            // Right arm
-            {
-                final double raY  = cy + tH * 0.42;
-                final double raL1 = 12 + frac(cx*0.27 + cz*0.35) * 8;
-                final double raL2 = 11 + frac(cx*0.35 + cz*0.21) * 6;
-                // Shoulder dir normalized: (0.88, 0.47, 0) -> (0.8829, 0.4694, 0)
-                final double ra1x = 0.8829, ra1y = 0.4694;
-                final double elX = cx + ra1x*raL1, elY = raY + ra1y*raL1;
-                scene.geometries.add(new Cylinder(
-                    new Ray(new Point(cx, raY, cz), new Vector(0.88, 0.47, 0).normalize()),
-                    2.8, raL1).setEmission(cactusC).setMaterial(cactM));
-                // Forearm dir: (0.38, 0.93, 0) -> mostly vertical
-                scene.geometries.add(new Cylinder(
-                    new Ray(new Point(elX, elY, cz), new Vector(0.38, 0.93, 0).normalize()),
-                    2.6, raL2).setEmission(cactusC).setMaterial(cactM));
-            }
+            // Barrel cacti — short, wide, dome-capped
+            addBarrelCactus(scene, -40, BASE_Y+terrH(-40,-12), -12, 7.5, 18, cactM);
+            addBarrelCactus(scene,  95, BASE_Y+terrH( 95, 35),  35, 6.0, 14, cactM);
+
+            // Desert shrubs — small sphere clusters for ground cover
+            Material shrubM = new Material().setKD(0.75).setKS(0.12).setShininess(8);
+            addShrub(scene, -210, BASE_Y+terrH(-210, 80),  80, shrubM);
+            addShrub(scene,  280, BASE_Y+terrH( 280, 55),  55, shrubM);
         }
 
         // ── Lights ────────────────────────────────────────────────────────
