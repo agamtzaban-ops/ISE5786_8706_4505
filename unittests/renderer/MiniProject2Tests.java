@@ -68,30 +68,31 @@ class MiniProject2Tests {
               + 1 * Math.cos(x * 0.081 - z * 0.072);
     }
 
-    /** Terrain color: sandy desert — warm tan/beige with variation. */
+    /** Terrain color: sandy desert with atmospheric haze — near=warm tan, far=pale. */
     private static Color terrC(double x, double z, double h) {
-        double t  = Math.max(0, Math.min(1, (h + 11) / 22.0));
-        double rf = frac(x * 0.073 + z * 0.097 + x * z * 3e-5);
+        double t    = Math.max(0, Math.min(1, (h + 11) / 22.0));
+        double rf   = frac(x * 0.073 + z * 0.097 + x * z * 3e-5);
+        double haze = Math.max(0, Math.min(1, (-z - 20) / 260.0)); // 0=near, 1=distant
         return new Color(
-            Math.min(255, (int)(165 + t * 42 + rf * 28)),
-            Math.min(255, (int)(122 + t * 28 + rf * 18)),
-            Math.min(255, (int)( 70 + t * 12 + rf *  8)));
+            Math.min(255, (int)(142 + t * 30 + rf * 20 + haze * 65)),
+            Math.min(255, (int)(102 + t * 20 + rf * 13 + haze * 52)),
+            Math.min(255, (int)( 58 + t *  8 + rf *  6 + haze * 55)));
     }
 
-    /** Sky gradient: t=0 → warm cream at horizon; t=1 → clear blue at zenith. */
+    /** Sky gradient: t=0 → warm cream at horizon; t=1 → deep blue at zenith. */
     private static Color skyC(double t) {
         return new Color(
-            (int)(238 * (1 - t) + 72 * t),
-            (int)(210 * (1 - t) + 158 * t),
-            (int)(168 * (1 - t) + 228 * t));
+            (int)(232 * (1 - t) + 48 * t),
+            (int)(205 * (1 - t) + 132 * t),
+            (int)(162 * (1 - t) + 215 * t));
     }
 
     // ========================= Scene =========================
 
     private static Scene buildScene() {
         Scene scene = new Scene("Desert Canyon");
-        scene.setBackground(new Color(118, 188, 228));
-        scene.setAmbientLight(new AmbientLight(new Color(88, 75, 55), new Double3(1)));
+        scene.setBackground(new Color(88, 148, 210));
+        scene.setAmbientLight(new AmbientLight(new Color(28, 22, 14), new Double3(1)));
 
         Material flat  = new Material().setKD(0.88).setKS(0.08).setShininess(6);
         Material skyM  = new Material().setKD(0.80).setKS(0.12).setShininess(10);
@@ -102,11 +103,11 @@ class MiniProject2Tests {
         // ── Backdrop plane (infinite → stays outside BVH) ─────────────────
         scene.geometries.add(
             new Plane(new Point(0, 0, -700), new Vector(0, 0, 1))
-                .setEmission(new Color(108, 182, 222)).setMaterial(skyM));
+                .setEmission(new Color(210, 188, 148)).setMaterial(skyM));
 
         // ── Sky — 10×14 = 280 triangles, blue daytime gradient ────────────
         final double SX0 = -700, SX1 = 700, SZ = -600;
-        final double SY0 = -22,  SY1 = 560;
+        final double SY0 = -88,  SY1 = 560;
         double sdx = (SX1 - SX0) / SKY_COLS;
         double sdy = (SY1 - SY0) / SKY_ROWS;
         for (int sr = 0; sr < SKY_ROWS; sr++) {
@@ -231,21 +232,21 @@ class MiniProject2Tests {
 
         // ── Lights (all four types) ───────────────────────────────────────────
         // 1. Ambient — set above.
-        // 2. Directional sun: high angle, warm white-yellow.
+        // 2. Directional sun: strong high-angle desert light.
         scene.lights.add(new DirectionalLight(
-            new Color(255, 238, 185), new Vector(-0.3, -1.0, 0.2)));
-        // 3. Point light simulating broad sky illumination.
+            new Color(255, 242, 195), new Vector(-0.25, -1.0, 0.15)));
+        // 3. Point light: distant sun for broad sky-bounce fill.
         scene.lights.add(new PointLight(
-            new Color(200, 185, 140), new Point(120, 420, -350))
-            .setKl(0.000018).setKq(0.000000003).setSize(60));
-        // 4. SpotLight highlighting the left rock cluster.
+            new Color(155, 138, 98), new Point(120, 500, -300))
+            .setKl(0.000015).setKq(0.000000002).setSize(55));
+        // 4. SpotLight: warm accent raking across left rock cluster.
         scene.lights.add(new SpotLight(
-            new Color(255, 195, 105), new Point(-380, 280, 80), new Vector(0.6, -1.0, -0.5))
-            .setNarrowBeam(5).setKl(0.00025).setKq(0.0000010));
-        // 5. Cool blue fill from the sky (bounce light).
+            new Color(255, 185, 88), new Point(-420, 320, 120), new Vector(0.65, -1.0, -0.5))
+            .setNarrowBeam(6).setKl(0.00022).setKq(0.0000009));
+        // 5. Cool sky-blue fill from above (atmospheric scatter).
         scene.lights.add(new SpotLight(
-            new Color(105, 158, 205), new Point(255, 360, 200), new Vector(-0.4, -1.0, -0.5))
-            .setNarrowBeam(3).setKl(0.00018).setKq(0.0000008).setSize(22));
+            new Color(88, 135, 188), new Point(260, 380, 220), new Vector(-0.38, -1.0, -0.5))
+            .setNarrowBeam(3).setKl(0.00016).setKq(0.0000007).setSize(18));
 
         return scene;
     }
