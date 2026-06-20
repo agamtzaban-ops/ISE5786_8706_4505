@@ -245,12 +245,15 @@ class MiniProject2Tests {
                 double litF = Math.max(0, Math.min(1, (x0 + 225) / 450.0));
                 Color c = new Color(
                     (int)(52 + litF*28), (int)(22 + litF*14), (int)(12 + litF*8));
-                scene.geometries.add(new Triangle(
-                    new Point(x0,mbase,mzFar), new Point(x1,mbase,mzFar),
-                    new Point(x1,mbase+h1,mzFar)).setEmission(c).setMaterial(rockM));
-                scene.geometries.add(new Triangle(
-                    new Point(x0,mbase,mzFar), new Point(x1,mbase+h1,mzFar),
-                    new Point(x0,mbase+h0,mzFar)).setEmission(c).setMaterial(rockM));
+                // Guard each triangle: skip if the peak vertex coincides with a base vertex
+                if (h1 > 1.0)
+                    scene.geometries.add(new Triangle(
+                        new Point(x0,mbase,mzFar), new Point(x1,mbase,mzFar),
+                        new Point(x1,mbase+h1,mzFar)).setEmission(c).setMaterial(rockM));
+                if (h0 > 1.0)
+                    scene.geometries.add(new Triangle(
+                        new Point(x0,mbase,mzFar), new Point(x1,mbase+h1,mzFar),
+                        new Point(x0,mbase+h0,mzFar)).setEmission(c).setMaterial(rockM));
             }
         }
 
@@ -271,12 +274,14 @@ class MiniProject2Tests {
                     (int)(68 + litF*50 + avgH*0.06),
                     (int)(30 + litF*26 + avgH*0.03),
                     (int)(14 + litF*12 + avgH*0.01));
-                scene.geometries.add(new Triangle(
-                    new Point(x0,mbase,mzMain), new Point(x1,mbase,mzMain),
-                    new Point(x1,mbase+h1,mzMain)).setEmission(c).setMaterial(rockM));
-                scene.geometries.add(new Triangle(
-                    new Point(x0,mbase,mzMain), new Point(x1,mbase+h1,mzMain),
-                    new Point(x0,mbase+h0,mzMain)).setEmission(c).setMaterial(rockM));
+                if (h1 > 1.0)
+                    scene.geometries.add(new Triangle(
+                        new Point(x0,mbase,mzMain), new Point(x1,mbase,mzMain),
+                        new Point(x1,mbase+h1,mzMain)).setEmission(c).setMaterial(rockM));
+                if (h0 > 1.0)
+                    scene.geometries.add(new Triangle(
+                        new Point(x0,mbase,mzMain), new Point(x1,mbase+h1,mzMain),
+                        new Point(x0,mbase+h0,mzMain)).setEmission(c).setMaterial(rockM));
             }
         }
 
