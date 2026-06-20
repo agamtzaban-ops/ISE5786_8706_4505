@@ -60,58 +60,51 @@ class MiniProject2Tests {
 
     private static double frac(double x) { return x - Math.floor(x); }
 
-    /** Terrain height-map: sum of sine waves, range ≈ ±18 units. */
+    /** Terrain height-map: gentle desert dunes, range ≈ ±11 units. */
     private static double terrH(double x, double z) {
-        return  8 * Math.sin(x * 0.022 + z * 0.015)
-              + 5 * Math.cos(x * 0.038 - z * 0.028)
-              + 3 * Math.sin(x * 0.055 + z * 0.047)
-              + 2 * Math.cos(x * 0.081 - z * 0.072);
+        return  5 * Math.sin(x * 0.022 + z * 0.015)
+              + 3 * Math.cos(x * 0.038 - z * 0.028)
+              + 2 * Math.sin(x * 0.055 + z * 0.047)
+              + 1 * Math.cos(x * 0.081 - z * 0.072);
     }
 
-    /** Terrain color: warm earthy oranges-reds, brighter on hilltops. */
+    /** Terrain color: sandy desert — warm tan/beige with variation. */
     private static Color terrC(double x, double z, double h) {
-        double t  = Math.max(0, Math.min(1, (h + 18) / 36.0));
+        double t  = Math.max(0, Math.min(1, (h + 11) / 22.0));
         double rf = frac(x * 0.073 + z * 0.097 + x * z * 3e-5);
         return new Color(
-            Math.min(255, (int)(75  + t * 95 + rf * 25)),
-            Math.min(255, (int)(30  + t * 40 + rf * 10)),
-            Math.min(255, (int)( 5  + t * 13 + rf *  5)));
+            Math.min(255, (int)(165 + t * 42 + rf * 28)),
+            Math.min(255, (int)(122 + t * 28 + rf * 18)),
+            Math.min(255, (int)( 70 + t * 12 + rf *  8)));
     }
 
-    /** Sky gradient: t=0 → bright orange at horizon; t=1 → deep blood-red at zenith. */
+    /** Sky gradient: t=0 → warm cream at horizon; t=1 → clear blue at zenith. */
     private static Color skyC(double t) {
         return new Color(
-            (int)(220 * (1 - t) + 58 * t),
-            (int)( 88 * (1 - t) + 12 * t),
-            (int)( 14 * (1 - t) +  4 * t));
+            (int)(238 * (1 - t) + 72 * t),
+            (int)(210 * (1 - t) + 158 * t),
+            (int)(168 * (1 - t) + 228 * t));
     }
 
     // ========================= Scene =========================
 
     private static Scene buildScene() {
-        Scene scene = new Scene("Savanna Sunset");
-        scene.setBackground(new Color(40, 10, 3));
-        scene.setAmbientLight(new AmbientLight(new Color(52, 26, 10), new Double3(1)));
+        Scene scene = new Scene("Desert Canyon");
+        scene.setBackground(new Color(118, 188, 228));
+        scene.setAmbientLight(new AmbientLight(new Color(88, 75, 55), new Double3(1)));
 
-        Material flat  = new Material().setKD(0.92).setKS(0.05).setShininess(4);
-        Material skyM  = new Material().setKD(0.85).setKS(0.10).setShininess(8);
-        Material dark  = new Material().setKD(0.85).setKS(0.05).setShininess(3);
-        Material trunk = new Material().setKD(0.70).setKS(0.12).setShininess(12);
+        Material flat  = new Material().setKD(0.88).setKS(0.08).setShininess(6);
+        Material skyM  = new Material().setKD(0.80).setKS(0.12).setShininess(10);
+        Material rockM = new Material().setKD(0.78).setKS(0.20).setShininess(22);
+        Material cactM = new Material().setKD(0.82).setKS(0.18).setShininess(16);
+        Material roadM = new Material().setKD(0.55).setKS(0.45).setShininess(35);
 
         // ── Backdrop plane (infinite → stays outside BVH) ─────────────────
         scene.geometries.add(
             new Plane(new Point(0, 0, -700), new Vector(0, 0, 1))
-                .setEmission(new Color(38, 10, 4)).setMaterial(skyM));
+                .setEmission(new Color(108, 182, 222)).setMaterial(skyM));
 
-        // ── Sun — glowing emissive sphere; marked as light source so
-        //    shadow rays from the terrain do not hit it ─────────────────────
-        scene.geometries.add(
-            new Sphere(new Point(-185, 6, -400), 92)
-                .setEmission(new Color(255, 162, 40))
-                .setMaterial(new Material().setKD(0.1).setKS(0))
-                .setLightSource());
-
-        // ── Sky — 8×6 grid of triangles forming a sunset gradient ─────────
+        // ── Sky — 10×14 = 280 triangles, blue daytime gradient ────────────
         final double SX0 = -700, SX1 = 700, SZ = -600;
         final double SY0 = -22,  SY1 = 560;
         double sdx = (SX1 - SX0) / SKY_COLS;
@@ -153,76 +146,106 @@ class MiniProject2Tests {
             }
         }
 
-        // ── Mountains — dark silhouette triangles in the background ─────────
-        Color mtnC = new Color(26, 12, 5);
-        double[][] mts = {
-            {-360, -62, -185,  -90, 112, -218,  170, -62, -168},
-            { -80, -62, -192,   65,  98, -222,  290, -62, -172},
-            { 210, -62, -168,  390,  62, -198,  520, -62, -162},
-            {-520, -62, -172, -310,  58, -198, -140, -62, -182},
+        // ── Rock formations — terracotta mesa / butte silhouettes ────────────
+        double[][] rocks = {
+            // Left big mesa
+            {-385,-62,-178, -305,148,-193, -242,138,-186,  155,62,22},
+            {-385,-62,-178, -242,138,-186, -195,-62,-180,  138,50,18},
+            {-305,148,-193, -288,162,-197, -242,138,-186,  172,70,27},
+            // Left secondary spire
+            {-268,-62,-173, -250, 98,-179, -225,-62,-175,  148,58,21},
+            {-250, 98,-179, -240,114,-181, -225,-62,-175,  165,66,24},
+            // Right big mesa
+            { 218,-62,-168,  312,155,-184,  375,-62,-176,  152,60,20},
+            { 312,155,-184,  332,172,-189,  375,-62,-176,  168,68,25},
+            // Right tall spire
+            { 362,-62,-162,  396,135,-172,  428,-62,-165,  162,64,23},
+            { 290,-62,-165,  355,188,-183,  415,-62,-170,  140,54,19},
+            // Background small formations
+            {-152,-62,-208, -130, 58,-214, -108,-62,-210,  112,44,15},
+            {  88,-62,-205,  120, 72,-210,  158,-62,-208,  120,48,17},
         };
-        for (double[] m : mts)
+        for (double[] r : rocks)
             scene.geometries.add(new Triangle(
-                new Point(m[0], m[1], m[2]),
-                new Point(m[3], m[4], m[5]),
-                new Point(m[6], m[7], m[8]))
-                .setEmission(mtnC).setMaterial(dark));
+                new Point(r[0],r[1],r[2]), new Point(r[3],r[4],r[5]), new Point(r[6],r[7],r[8]))
+                .setEmission(new Color((int)r[9],(int)r[10],(int)r[11])).setMaterial(rockM));
 
-        // ── Acacia trees: 6 trees × (1 cylinder trunk + 4 canopy triangles) ─
-        Color trunkC  = new Color(40, 19, 7);
-        Color canopyC = new Color(16, 36, 9);
-        double[][] treeXZ = {
-            {-152, 78}, {-218, 22}, { 128, 48},
-            { 185, -8}, { -58,-22}, { 235, 95}
+        // ── Saguaro cacti — 6 cacti × 5 cylinders = 30 geometries ────────────
+        Color cactusC = new Color(42, 128, 32);
+        double[][] cactPos = {
+            {-168, 65}, {-108, 98}, { 52, 40},
+            { 165, 62}, { -40,-12}, { 238, 90}
         };
-        for (double[] tp : treeXZ) {
-            double tx = tp[0], tz = tp[1];
-            double ty  = BASE_Y + terrH(tx, tz);
-            double tH  = 50 + frac(tx * 0.17 + tz * 0.23) * 25;
-            double cR  = 30 + frac(tx * 0.31 + tz * 0.41) * 18;
-            double top = ty + tH;
-            scene.geometries.add(
-                new Cylinder(new Ray(new Point(tx, ty, tz), Vector.AXIS_Y), 3.5, tH)
-                    .setEmission(trunkC).setMaterial(trunk));
-            double[] ang = {0, Math.PI / 2, Math.PI, 3 * Math.PI / 2};
-            for (int i = 0; i < 4; i++) {
-                double a1 = ang[i], a2 = ang[(i + 1) % 4];
-                Point apex = new Point(tx, top,     tz);
-                Point e1   = new Point(tx + cR * Math.cos(a1), top - 10, tz + cR * Math.sin(a1));
-                Point e2   = new Point(tx + cR * Math.cos(a2), top - 10, tz + cR * Math.sin(a2));
-                scene.geometries.add(new Triangle(apex, e1, e2)
-                    .setEmission(canopyC).setMaterial(dark));
-            }
+        for (double[] cp : cactPos) {
+            double cx = cp[0], cz = cp[1];
+            double cy  = BASE_Y + terrH(cx, cz);
+            double tH  = 55 + frac(cx * 0.13 + cz * 0.19) * 30;
+            double aL  = 18 + frac(cx * 0.27 + cz * 0.31) * 12;
+            double aY1 = cy + tH * 0.45;
+            double aY2 = cy + tH * 0.38;
+            // Trunk
+            scene.geometries.add(new Cylinder(
+                new Ray(new Point(cx, cy, cz), Vector.AXIS_Y), 4.5, tH)
+                .setEmission(cactusC).setMaterial(cactM));
+            // Left arm outward
+            Vector leftDir = new Vector(-1, 0.45, 0).normalize();
+            scene.geometries.add(new Cylinder(
+                new Ray(new Point(cx, aY1, cz), leftDir), 3.0, aL)
+                .setEmission(cactusC).setMaterial(cactM));
+            // Left arm tip upward
+            Point leftTip = new Point(cx - aL * 0.91, aY1 + aL * 0.41, cz);
+            scene.geometries.add(new Cylinder(
+                new Ray(leftTip, Vector.AXIS_Y), 3.0, aL * 0.65)
+                .setEmission(cactusC).setMaterial(cactM));
+            // Right arm outward
+            Vector rightDir = new Vector(1, 0.55, 0).normalize();
+            scene.geometries.add(new Cylinder(
+                new Ray(new Point(cx, aY2, cz), rightDir), 3.0, aL * 0.85)
+                .setEmission(cactusC).setMaterial(cactM));
+            // Right arm tip upward
+            Point rightTip = new Point(cx + aL * 0.85 * 0.88, aY2 + aL * 0.85 * 0.47, cz);
+            scene.geometries.add(new Cylinder(
+                new Ray(rightTip, Vector.AXIS_Y), 3.0, aL * 0.55)
+                .setEmission(cactusC).setMaterial(cactM));
         }
 
-        // ── Reflective water pool — flat mirror in the foreground ────────────
-        Material water = new Material().setKD(0.25).setKS(0.75).setShininess(100).setKR(0.55);
-        Color waterE   = new Color(30, 12, 5);
-        double wy = BASE_Y + 0.5;                    // just above ground level
+        // ── Road — flat asphalt strip in the immediate foreground ────────────
+        Color roadC = new Color(48, 45, 40);
+        Color lineC = new Color(238, 215, 48);
+        double ry = BASE_Y + 0.3;
         scene.geometries.add(new Triangle(
-            new Point(-110, wy,  90), new Point( 110, wy,  90), new Point( 110, wy, 235))
-            .setEmission(waterE).setMaterial(water));
+            new Point(-170, ry, 262), new Point(170, ry, 262), new Point(170, ry, 310))
+            .setEmission(roadC).setMaterial(roadM));
         scene.geometries.add(new Triangle(
-            new Point(-110, wy,  90), new Point( 110, wy, 235), new Point(-110, wy, 235))
-            .setEmission(waterE).setMaterial(water));
+            new Point(-170, ry, 262), new Point(170, ry, 310), new Point(-170, ry, 310))
+            .setEmission(roadC).setMaterial(roadM));
+        for (int d = 0; d < 3; d++) {
+            double dz0 = 265 + d * 14, dz1 = dz0 + 8;
+            scene.geometries.add(new Triangle(
+                new Point(-5, ry + 0.1, dz0), new Point(5, ry + 0.1, dz0), new Point(5, ry + 0.1, dz1))
+                .setEmission(lineC).setMaterial(roadM));
+            scene.geometries.add(new Triangle(
+                new Point(-5, ry + 0.1, dz0), new Point(5, ry + 0.1, dz1), new Point(-5, ry + 0.1, dz1))
+                .setEmission(lineC).setMaterial(roadM));
+        }
 
-        // ── Lights (all four types represented) ──────────────────────────────
+        // ── Lights (all four types) ───────────────────────────────────────────
         // 1. Ambient — set above.
-        // 2. Directional sunlight raking in from the left.
+        // 2. Directional sun: high angle, warm white-yellow.
         scene.lights.add(new DirectionalLight(
-            new Color(255, 138, 48), new Vector(1.1, -0.22, 0.45)));
-        // 3. Point light at the sun sphere (warm glow with soft-shadow size).
+            new Color(255, 238, 185), new Vector(-0.3, -1.0, 0.2)));
+        // 3. Point light simulating broad sky illumination.
         scene.lights.add(new PointLight(
-            new Color(255, 188, 68), new Point(-185, 6, -400))
-            .setKl(0.00005).setKq(0.00000009).setSize(48));
-        // 4. Cool purple-blue fill from the zenith (sky bounce).
+            new Color(200, 185, 140), new Point(120, 420, -350))
+            .setKl(0.000018).setKq(0.000000003).setSize(60));
+        // 4. SpotLight highlighting the left rock cluster.
         scene.lights.add(new SpotLight(
-            new Color(68, 42, 128), new Point(360, 290, -160), new Vector(-0.8, -1, -0.3))
-            .setNarrowBeam(4).setKl(0.0002).setKq(0.0000012));
-        // 5. Warm orange accent spot highlighting foreground terrain.
+            new Color(255, 195, 105), new Point(-380, 280, 80), new Vector(0.6, -1.0, -0.5))
+            .setNarrowBeam(5).setKl(0.00025).setKq(0.0000010));
+        // 5. Cool blue fill from the sky (bounce light).
         scene.lights.add(new SpotLight(
-            new Color(195, 98, 28), new Point(-130, 230, 200), new Vector(0.5, -1, -0.42))
-            .setNarrowBeam(3).setKl(0.00014).setKq(0.0000008).setSize(22));
+            new Color(105, 158, 205), new Point(255, 360, 200), new Vector(-0.4, -1.0, -0.5))
+            .setNarrowBeam(3).setKl(0.00018).setKq(0.0000008).setSize(22));
 
         return scene;
     }
@@ -232,8 +255,8 @@ class MiniProject2Tests {
     private static Camera.Builder buildCameraBuilder(Scene scene, SimpleRayTracer tracer) {
         return Camera.getBuilder()
                 .setRayTracer(scene, tracer)
-                .setLocation(new Point(0, 32, 315))
-                .setDirection(new Point(-45, -22, -100), Vector.AXIS_Y)
+                .setLocation(new Point(0, 42, 310))
+                .setDirection(new Point(-15, 5, -100), Vector.AXIS_Y)
                 .setVpDistance(350)
                 .setVpSize(490, 308)    // 16:10 landscape aspect
                 .setResolution(600, 375)
