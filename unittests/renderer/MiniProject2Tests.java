@@ -374,7 +374,8 @@ class MiniProject2Tests {
      */
     private static void buildBezierArm(Scene scene,
                                         double[] P0, double[] P1, double[] P2, double[] P3,
-                                        double radius, int nSamples, int nSides, Material mat) {
+                                        double radius, int nSamples, int nSides, Material mat,
+                                        Color thornColor, Material thornMat) {
         // ── Sample the Bezier curve ──────────────────────────────────────────
         double[][] pos  = new double[nSamples][3];
         double[][] tang = new double[nSamples][3];
@@ -451,6 +452,43 @@ class MiniProject2Tests {
                 vnrm[k][j], vnrm[k+1][i], vnrm[k+1][j])
                 .setEmission(fc).setMaterial(mat));
         }
+
+        // ── Thorns at Bézier tube ridge points ───────────────────────────────
+        // Added inline to reuse the already-computed pos[][], us[][], vs[][]
+        // frame — guarantees thorns land exactly on the rib peaks.
+        // Thorns fire at every other sample (k odd) and every ridge (even i).
+        // Count per arm: ⌊nSamples/2⌋ × (nSides/2) × 2 ≈ 5 × 4 × 2 = 40 tris
+        if (thornMat != null) {
+            final double THORN_L = 2.5;  // outward reach
+            final double THORN_H = 0.26; // base half-spread along tangent
+            final double THORN_T = 0.40; // tip tilt along tangent
+            for (int k = 1; k < nSamples - 1; k += 2) {
+                double[] Tk = normalize3(tang[k]);
+                for (int i = 0; i < nSides; i += 2) { // i even = ridge vertices
+                    double a  = 2 * Math.PI * i / nSides;
+                    double ca = Math.cos(a), sa = Math.sin(a);
+                    // Offset to rib peak using the parallel-transport frame
+                    double ox = ridgeR * (ca*us[k][0] + sa*vs[k][0]);
+                    double oy = ridgeR * (ca*us[k][1] + sa*vs[k][1]);
+                    double oz = ridgeR * (ca*us[k][2] + sa*vs[k][2]);
+                    double rx = pos[k][0]+ox, ry = pos[k][1]+oy, rz = pos[k][2]+oz;
+                    // Outward normal ⊥ tangent
+                    double dDot = ox*Tk[0] + oy*Tk[1] + oz*Tk[2];
+                    double[] outn = normalize3(new double[]{
+                        ox - dDot*Tk[0], oy - dDot*Tk[1], oz - dDot*Tk[2]});
+                    // Base spread along tangent; tip outward + slight forward tilt
+                    Point p0  = new Point(rx+Tk[0]*THORN_H, ry+Tk[1]*THORN_H, rz+Tk[2]*THORN_H);
+                    Point p1  = new Point(rx-Tk[0]*THORN_H, ry-Tk[1]*THORN_H, rz-Tk[2]*THORN_H);
+                    Point tip = new Point(rx+outn[0]*THORN_L+Tk[0]*THORN_T,
+                                          ry+outn[1]*THORN_L+Tk[1]*THORN_T,
+                                          rz+outn[2]*THORN_L+Tk[2]*THORN_T);
+                    scene.geometries.add(new Triangle(p0, p1, tip)
+                            .setEmission(thornColor).setMaterial(thornMat));
+                    scene.geometries.add(new Triangle(p1, p0, tip)
+                            .setEmission(thornColor).setMaterial(thornMat));
+                }
+            }
+        }
     }
 
     // ========================= Ribbed-spheroid barrel cactus =================
@@ -510,6 +548,97 @@ class MiniProject2Tests {
             try { scene.geometries.add(new SmoothTriangle(p00,p11,p01,n00,n11,n01)
                       .setEmission(fc).setMaterial(mat)); }
             catch (IllegalArgumentException ignored) {}
+        }
+    }
+
+    // ========================= Thorn / spike geometry =================
+
+    /**
+     * Adds straw-coloured thorn spikes along the ribs of a saguaro trunk.
+     * Each spike is a double-sided flat triangle (2 triangles) so it is
+     * visible from both sides as the camera orbits.
+     * Alternate rows are staggered by half a rib-angle, matching the helical
+     * thorn-cluster growth pattern of real cacti.
+     *
+     * Triangle count per trunk: rows × nRibs × 2  (≈ 9 × 8 × 2 = 144)
+     */
+    private static void addThornsOnTrunk(Scene scene,
+            double cx, double cy, double cz,
+            double radius, double height, int nRibs,
+            Color thornColor, Material thornMat) {
+        final double RIDGE_R = radius + 1.4;  // must match addRibbedTrunk
+        final double THORN_L = 3.0;            // outward length
+        final double THORN_H = 0.27;           // half-height of base spread
+        final double THORN_U = 0.55;           // upward tip tilt
+        final double ROW_DY  = 7.5;            // vertical spacing
+
+        int rows = (int)((height - 4.0) / ROW_DY);
+        for (int row = 0; row < rows; row++) {
+            double h = 3.5 + row * ROW_DY;
+            double off = (row % 2 == 0) ? 0.0 : Math.PI / nRibs; // helical stagger
+            for (int rib = 0; rib < nRibs; rib++) {
+                double ang = 2 * Math.PI * rib / nRibs + off;
+                double ox = Math.cos(ang), oz = Math.sin(ang);
+                double rx = cx + ox * RIDGE_R, rz = cz + oz * RIDGE_R, ry = cy + h;
+                Point p0  = new Point(rx, ry + THORN_H, rz);
+                Point p1  = new Point(rx, ry - THORN_H, rz);
+                Point tip = new Point(cx + ox * (RIDGE_R + THORN_L),
+                                      ry + THORN_U,
+                                      cz + oz * (RIDGE_R + THORN_L));
+                scene.geometries.add(new Triangle(p0, p1, tip)
+                        .setEmission(thornColor).setMaterial(thornMat));
+                scene.geometries.add(new Triangle(p1, p0, tip)
+                        .setEmission(thornColor).setMaterial(thornMat));
+            }
+        }
+    }
+
+    /**
+     * Adds thorn spikes to the rib peaks of a ribbed UV-spheroid barrel cactus.
+     * Thorns are placed at u = 2π·k/nRibs (rib peaks) across several latitude
+     * bands (poles excluded).  The spike points along the ellipsoid gradient —
+     * the same outward direction as the per-vertex normal used for smooth shading.
+     *
+     * Triangle count per barrel: nLatThorns × nRibs × 2  (≈ 5 × 20 × 2 = 200)
+     */
+    private static void addThornsOnBarrel(Scene scene,
+            double cx, double cy, double cz,
+            double radius, double height, int nRibs,
+            Color thornColor, Material thornMat) {
+        double H  = height / 2.0;
+        double R  = radius;
+        double rd = 0.18;          // must match addRibbedBarrel
+        final double THORN_L = 2.2;
+        final double THORN_H = 0.28;
+
+        final int nLatThorns = 5;
+        for (int vi = 0; vi < nLatThorns; vi++) {
+            // 15% → 85% of latitude to avoid pole artifacts
+            double vFrac = 0.15 + 0.70 * vi / (double)(nLatThorns - 1);
+            double v    = -Math.PI / 2 + Math.PI * vFrac;
+            double sinV = Math.sin(v), cosV = Math.cos(v);
+            for (int ri = 0; ri < nRibs; ri++) {
+                double u  = 2 * Math.PI * ri / nRibs;
+                double r  = R * (1 + rd);               // rib peak
+                double x  = r * cosV * Math.cos(u);
+                double y  = H * sinV;
+                double z  = r * cosV * Math.sin(u);
+                double sx = cx + x, sy = cy + H + y, sz = cz + z;
+                // Ellipsoid outward normal (same formula as addRibbedBarrel)
+                double[] outn = normalize3(new double[]{x / R, y / H, z / R});
+                // Up = dv direction (latitude tangent = direction along the rib)
+                double[] up = normalize3(new double[]{
+                    -r * sinV * Math.cos(u),
+                     H * cosV,
+                    -r * sinV * Math.sin(u)});
+                Point p0  = new Point(sx + up[0]*THORN_H, sy + up[1]*THORN_H, sz + up[2]*THORN_H);
+                Point p1  = new Point(sx - up[0]*THORN_H, sy - up[1]*THORN_H, sz - up[2]*THORN_H);
+                Point tip = new Point(sx + outn[0]*THORN_L, sy + outn[1]*THORN_L, sz + outn[2]*THORN_L);
+                scene.geometries.add(new Triangle(p0, p1, tip)
+                        .setEmission(thornColor).setMaterial(thornMat));
+                scene.geometries.add(new Triangle(p1, p0, tip)
+                        .setEmission(thornColor).setMaterial(thornMat));
+            }
         }
     }
 
@@ -652,12 +781,16 @@ class MiniProject2Tests {
         }
 
         // ── Saguaro cacti — 5 ribbed trunks with Bézier-curved arms ──────────
-        //   Arms are now cubic Bézier tubes (12 cross-sections × 8-sided ribbed
-        //   prism) using SmoothTriangles with per-vertex radial normals so light
-        //   wraps naturally around the curves.  The classic saguaro "droop then
-        //   sweep upward" silhouette comes from control-point placement.
-        //   + 2 ribbed-spheroid barrel cacti + 2 desert shrubs
+        //   + procedural thorns on every rib of trunks, arms, and barrel cacti.
+        //   Thorn material: pale straw-yellow, high specular, rim-lit so the
+        //   low sunset light catches each spine with a warm golden glint.
         {
+            // Thorn material — distinct from cactus body, catches rim lighting
+            Color thornC = new Color(222, 208, 145);
+            Material thornM = new Material()
+                    .setKD(0.50).setKS(0.55).setShininess(60)
+                    .setRimLighting(new Color(255, 235, 148), 1.4);
+
             double[][] saguaroPos = {
                 {-168,65},{-108,98},{52,40},{165,62},{238,90}
             };
@@ -666,37 +799,37 @@ class MiniProject2Tests {
                 final double cy = BASE_Y + terrH(cx, cz);
                 final double tH = 55 + frac(cx*0.13+cz*0.19)*30;
 
-                // Ribbed trunk: 8 ribs = 16-sided prism with per-face sun tinting
+                // Ribbed trunk + thorns staggered in a helical pattern
                 addRibbedTrunk(scene, cx, cy, cz, 4.5, tH, 8, cactM);
+                addThornsOnTrunk(scene, cx, cy, cz, 4.5, tH, 8, thornC, thornM);
 
                 // ── Left arm: droop slightly then sweep up (classic saguaro curve) ──
                 final double laY = cy + tH*0.50;
-                final double laL = 20 + frac(cx*0.31+cz*0.19)*14; // total arm reach
-                // P1: 35% outward, slight dip (-5%) — arm initially goes outward
-                // P2: 80% outward, 38% height  — arm starts curving upward
-                // P3: 88% outward, 82% height  — tip nearly vertical
+                final double laL = 20 + frac(cx*0.31+cz*0.19)*14;
                 buildBezierArm(scene,
-                    new double[]{cx,         laY,              cz},
+                    new double[]{cx,          laY,             cz},
                     new double[]{cx-laL*0.35, laY-laL*0.05,   cz},
                     new double[]{cx-laL*0.80, laY+laL*0.38,   cz},
                     new double[]{cx-laL*0.88, laY+laL*0.82,   cz},
-                    2.8, 12, 8, cactM);
+                    2.8, 12, 8, cactM, thornC, thornM);
 
-                // ── Right arm (mirror) ───────────────────────────────────────────────
+                // ── Right arm (mirror) ─────────────────────────────────────────────
                 final double raY = cy + tH*0.42;
                 final double raL = 18 + frac(cx*0.27+cz*0.35)*12;
                 buildBezierArm(scene,
-                    new double[]{cx,         raY,              cz},
+                    new double[]{cx,          raY,             cz},
                     new double[]{cx+raL*0.35, raY-raL*0.05,   cz},
                     new double[]{cx+raL*0.80, raY+raL*0.38,   cz},
                     new double[]{cx+raL*0.88, raY+raL*0.82,   cz},
-                    2.8, 12, 8, cactM);
+                    2.8, 12, 8, cactM, thornC, thornM);
             }
 
-            // Barrel cacti — ribbed UV-spheroid with smooth shading (32 lon × 16 lat, 20 ribs)
+            // Barrel cacti — ribbed UV-spheroid + ellipsoid-gradient thorns
             double bcy1 = BASE_Y+terrH(-40,-12), bcy2 = BASE_Y+terrH(95,35);
             addRibbedBarrel(scene, -40, bcy1, -12,  9.0, 24, 32, 16, 20, cactM);
+            addThornsOnBarrel(scene, -40, bcy1, -12,  9.0, 24, 20, thornC, thornM);
             addRibbedBarrel(scene,  95, bcy2,  35,  7.5, 19, 32, 16, 20, cactM);
+            addThornsOnBarrel(scene,  95, bcy2,  35,  7.5, 19, 20, thornC, thornM);
 
             // Desert shrubs — small sphere clusters for ground cover
             Material shrubM = new Material().setKD(0.75).setKS(0.12).setShininess(8);
