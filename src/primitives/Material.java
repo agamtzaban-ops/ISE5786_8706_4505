@@ -187,6 +187,30 @@ public class Material {
         return this;
     }
 
+    // ── Rim / Fresnel edge glow ──────────────────────────────────────────────
+
+    /**
+     * Rim-lighting colour: surfaces at silhouette edges (|N·V| ≈ 0) receive an
+     * additive boost of this colour — simulates warm sunset light catching edges.
+     * null (default) disables the effect.
+     */
+    public Color rimColor = null;
+
+    /** Rim falloff exponent. 0 = disabled. Typical 2–5; higher = narrower rim. */
+    public double rimPower = 0.0;
+
+    /**
+     * Activates rim lighting on this material.
+     * @param color highlight colour (e.g. {@code new Color(220,130,45)} for sunset glow)
+     * @param power falloff exponent — higher narrows the rim band
+     * @return this material (method chaining)
+     */
+    public Material setRimLighting(Color color, double power) {
+        this.rimColor = color;
+        this.rimPower = power;
+        return this;
+    }
+
     /* --- Backwards Compatibility for Tests & Loader --- */
     public Material setKA(Double3 ka) { return this; }
     public Material setKA(double ka) { return this; }

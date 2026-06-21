@@ -230,6 +230,289 @@ class MiniProject2Tests {
         }
     }
 
+    // ========================= 3-D math helpers (double[] vectors) ===========
+
+    private static double[] normalize3(double[] v) {
+        double len = Math.sqrt(v[0]*v[0] + v[1]*v[1] + v[2]*v[2]);
+        return len < 1e-9 ? new double[]{0, 1, 0} : new double[]{v[0]/len, v[1]/len, v[2]/len};
+    }
+    private static double[] cross3(double[] a, double[] b) {
+        return new double[]{ a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0] };
+    }
+    private static double dot3(double[] a, double[] b) {
+        return a[0]*b[0] + a[1]*b[1] + a[2]*b[2];
+    }
+    private static Vector toVec(double[] n) {
+        try { return new Vector(n[0], n[1], n[2]).normalize(); }
+        catch (IllegalArgumentException e) { return new Vector(0, 1, 0); }
+    }
+
+    // ========================= Diamond-Square mountain =======================
+
+    /**
+     * Generates a (2^n+1)×(2^n+1) heightmap via the Diamond-Square algorithm.
+     * Values are in an arbitrary range; caller normalizes and scales.
+     *
+     * @param n         grid exponent (grid size = 2^n + 1)
+     * @param roughness persistence per iteration (0.5 = natural; 0.7 = jagged)
+     * @param seed      RNG seed for reproducibility
+     */
+    private static double[][] diamondSquare(int n, double roughness, long seed) {
+        int sz = (1 << n) + 1;
+        double[][] h = new double[sz][sz];
+        java.util.Random rng = new java.util.Random(seed);
+        // Corner seeds — zero so edges fade to base level
+        h[0][0] = h[0][sz-1] = h[sz-1][0] = h[sz-1][sz-1] = 0;
+
+        double scale = 1.0;
+        for (int step = sz-1; step > 1; step >>= 1, scale *= roughness) {
+            int half = step >> 1;
+            // Diamond step: fill square midpoints
+            for (int y = 0; y < sz-1; y += step)
+                for (int x = 0; x < sz-1; x += step) {
+                    double avg = (h[y][x]+h[y][x+step]+h[y+step][x]+h[y+step][x+step])*0.25;
+                    h[y+half][x+half] = avg + (rng.nextDouble()*2-1)*scale;
+                }
+            // Square step: fill edge midpoints
+            for (int y = 0; y < sz; y += half)
+                for (int x = (y+half)%step; x < sz; x += step) {
+                    double sum = 0; int cnt = 0;
+                    if (y-half>=0)   { sum+=h[y-half][x]; cnt++; }
+                    if (y+half<sz)   { sum+=h[y+half][x]; cnt++; }
+                    if (x-half>=0)   { sum+=h[y][x-half]; cnt++; }
+                    if (x+half<sz)   { sum+=h[y][x+half]; cnt++; }
+                    h[y][x] = sum/cnt + (rng.nextDouble()*2-1)*scale;
+                }
+        }
+        return h;
+    }
+
+    /**
+     * Replaces the two flat ridge panels with a true 3-D fractal mountain mass.
+     * Uses a 33×33 Diamond-Square heightmap tessellated into SmoothTriangles
+     * with per-vertex gradient normals so the sunset light wraps across slopes.
+     *
+     * The mountain occupies x∈[xMin,xMax], z∈[zBack,zFront] and rises to
+     * {@code peakScale} units above {@code baseY}.  A sinusoidal X-envelope
+     * plus a linear Z-taper (tall at back, zero at front) give natural silhouettes.
+     */
+    private static void addFractalMountain(Scene scene, Material mat,
+                                            double xMin, double xMax,
+                                            double zBack, double zFront,
+                                            double baseY, double peakScale) {
+        final int n = 5;                // 33×33 grid
+        double[][] raw = diamondSquare(n, 0.62, 0xDEAD_BEEFL);
+        int sz = raw.length; // 33
+
+        // Normalise raw noise to [0,1]
+        double rMin=Double.MAX_VALUE, rMax=-Double.MAX_VALUE;
+        for (double[] row : raw) for (double v : row) { rMin=Math.min(rMin,v); rMax=Math.max(rMax,v); }
+        double rRange = Math.max(rMax-rMin, 1e-6);
+
+        double dx = (xMax-xMin)/(sz-1);
+        double dz = (zFront-zBack)/(sz-1); // positive: z increases toward camera
+
+        // World heights h[row][col], row→z, col→x
+        double[][] h = new double[sz][sz];
+        for (int r=0; r<sz; r++) for (int c=0; c<sz; c++) {
+            double norm = (raw[r][c]-rMin)/rRange;
+            double xEnv = Math.sin(Math.PI * c/(sz-1));        // fade at x edges
+            double zEnv = 1.0 - (double)r/(sz-1);             // tall at back, 0 at front
+            h[r][c] = peakScale * norm * xEnv * xEnv * zEnv;
+        }
+
+        // Vertex world positions
+        Point[][] pts = new Point[sz][sz];
+        for (int r=0; r<sz; r++) for (int c=0; c<sz; c++)
+            pts[r][c] = new Point(xMin+c*dx, baseY+h[r][c], zBack+r*dz);
+
+        // Per-vertex normals from central-difference gradient: n = normalize(-dh/dx, 1, -dh/dz)
+        Vector[][] vn = new Vector[sz][sz];
+        for (int r=0; r<sz; r++) for (int c=0; c<sz; c++) {
+            double dhx = c>0&&c<sz-1 ? (h[r][c+1]-h[r][c-1])/(2*dx)
+                        : c==0       ? (h[r][1]-h[r][0])/dx
+                                     : (h[r][sz-1]-h[r][sz-2])/dx;
+            double dhz = r>0&&r<sz-1 ? (h[r+1][c]-h[r-1][c])/(2*dz)
+                        : r==0       ? (h[1][c]-h[0][c])/dz
+                                     : (h[sz-1][c]-h[sz-2][c])/dz;
+            vn[r][c] = toVec(new double[]{-dhx, 1.0, -dhz});
+        }
+
+        // Tessellate quads into two SmoothTriangles each
+        for (int r=0; r<sz-1; r++) for (int c=0; c<sz-1; c++) {
+            double avgH = (h[r][c]+h[r][c+1]+h[r+1][c]+h[r+1][c+1])*0.25;
+            if (avgH < 0.5) continue; // skip flat background quads
+            double litF = Math.max(0, Math.min(1, ((xMin+c*dx)+222)/444.0));
+            int cr = (int)(55 + litF*45 + avgH*0.10);
+            int cg = (int)(22 + litF*22 + avgH*0.04);
+            int cb = (int)(12 + litF*10 + avgH*0.02);
+            Color mc = new Color(Math.min(255,cr), Math.min(255,cg), Math.min(255,cb));
+
+            // Winding Triangle(p00,p11,p01) and Triangle(p00,p10,p11) → upward face normals
+            scene.geometries.add(new SmoothTriangle(
+                pts[r][c], pts[r+1][c], pts[r+1][c+1],
+                vn[r][c],  vn[r+1][c], vn[r+1][c+1])
+                .setEmission(mc).setMaterial(mat));
+            scene.geometries.add(new SmoothTriangle(
+                pts[r][c], pts[r+1][c+1], pts[r][c+1],
+                vn[r][c],  vn[r+1][c+1], vn[r][c+1])
+                .setEmission(mc).setMaterial(mat));
+        }
+    }
+
+    // ========================= Bezier-tube cactus arms =======================
+
+    /**
+     * Builds a curved cactus arm as a cubic Bézier tube mesh.
+     *
+     * The arm spine follows the Bézier path P0→P1→P2→P3.  At each of
+     * {@code nSamples} curve samples a {@code nSides}-sided ribbed circle
+     * is extruded perpendicular to the tangent using a rotation-minimising
+     * (parallel-transport) frame so the cross-section never flip-twists.
+     * Each quad face is split into two SmoothTriangles whose vertex normals
+     * are the outward radial directions, giving smooth Phong shading.
+     */
+    private static void buildBezierArm(Scene scene,
+                                        double[] P0, double[] P1, double[] P2, double[] P3,
+                                        double radius, int nSamples, int nSides, Material mat) {
+        // ── Sample the Bezier curve ──────────────────────────────────────────
+        double[][] pos  = new double[nSamples][3];
+        double[][] tang = new double[nSamples][3];
+        for (int k=0; k<nSamples; k++) {
+            double t  = (double)k/(nSamples-1);
+            double t2 = t*t, t3=t2*t, u=1-t, u2=u*u, u3=u2*u;
+            for (int i=0; i<3; i++) {
+                pos[k][i]  = u3*P0[i] + 3*u2*t*P1[i] + 3*u*t2*P2[i] + t3*P3[i];
+                tang[k][i] = 3*(u2*(P1[i]-P0[i]) + 2*u*t*(P2[i]-P1[i]) + t2*(P3[i]-P2[i]));
+            }
+        }
+
+        // ── Build rotation-minimising frame via parallel transport ───────────
+        double[][] us = new double[nSamples][3]; // first frame axis (⊥ to tangent)
+        double[][] vs = new double[nSamples][3]; // second frame axis
+        {
+            double[] T0 = normalize3(tang[0]);
+            // Initial u: Gram-Schmidt of (0,1,0) against T
+            double[] up = {0,1,0};
+            double d = dot3(up, T0);
+            double[] u0 = normalize3(new double[]{up[0]-d*T0[0], up[1]-d*T0[1], up[2]-d*T0[2]});
+            us[0] = u0;
+            vs[0] = normalize3(cross3(T0, u0));
+            for (int k=1; k<nSamples; k++) {
+                double[] Tk = normalize3(tang[k]);
+                double dU = dot3(us[k-1], Tk);
+                us[k] = normalize3(new double[]{us[k-1][0]-dU*Tk[0],
+                                                us[k-1][1]-dU*Tk[1],
+                                                us[k-1][2]-dU*Tk[2]});
+                vs[k] = normalize3(cross3(Tk, us[k]));
+            }
+        }
+
+        // ── Extrude ribbed cross-sections ────────────────────────────────────
+        double ridgeR = radius+0.5, valleyR = Math.max(0.15, radius-0.35);
+        Point[][] circ  = new Point[nSamples][nSides];
+        Vector[][] vnrm = new Vector[nSamples][nSides];
+        for (int k=0; k<nSamples; k++) {
+            double[] Tk = normalize3(tang[k]);
+            for (int i=0; i<nSides; i++) {
+                double a = 2*Math.PI*i/nSides;
+                double r = (i%2==0) ? ridgeR : valleyR;
+                double ca=Math.cos(a), sa=Math.sin(a);
+                double ox=r*(ca*us[k][0]+sa*vs[k][0]);
+                double oy=r*(ca*us[k][1]+sa*vs[k][1]);
+                double oz=r*(ca*us[k][2]+sa*vs[k][2]);
+                circ[k][i] = new Point(pos[k][0]+ox, pos[k][1]+oy, pos[k][2]+oz);
+                // Outward radial normal (d-component removed for perpendicularity)
+                double dDot = ox*Tk[0]+oy*Tk[1]+oz*Tk[2];
+                vnrm[k][i] = toVec(new double[]{ox-dDot*Tk[0], oy-dDot*Tk[1], oz-dDot*Tk[2]});
+            }
+        }
+
+        // ── Tessellate tube into SmoothTriangles ────────────────────────────
+        // Winding (bik, bi1k, bjk) → outward normal (verified analytically for tube)
+        for (int k=0; k<nSamples-1; k++) for (int i=0; i<nSides; i++) {
+            int j = (i+1)%nSides;
+            // Sun colour from average outward direction
+            double sunDot;
+            try {
+                Vector avgN = vnrm[k][i].add(vnrm[k+1][i]).add(vnrm[k][j]).add(vnrm[k+1][j]);
+                sunDot = avgN.normalize()
+                             .dotProduct(new Vector(SUN3D_X, SUN3D_Y, SUN3D_Z));
+            } catch (Exception e) { sunDot = 0; }
+            double ts = Math.max(0, Math.min(1, (sunDot+1)/2.0));
+            Color fc = new Color((int)(10+ts*65),(int)(42+ts*108),(int)(32-ts*12));
+
+            scene.geometries.add(new SmoothTriangle(
+                circ[k][i], circ[k+1][i], circ[k][j],
+                vnrm[k][i], vnrm[k+1][i], vnrm[k][j])
+                .setEmission(fc).setMaterial(mat));
+            scene.geometries.add(new SmoothTriangle(
+                circ[k][j], circ[k+1][i], circ[k+1][j],
+                vnrm[k][j], vnrm[k+1][i], vnrm[k+1][j])
+                .setEmission(fc).setMaterial(mat));
+        }
+    }
+
+    // ========================= Ribbed-spheroid barrel cactus =================
+
+    /**
+     * A proper barrel cactus: a UV-tessellated oblate spheroid whose radius is
+     * modulated by {@code nRibs} cosine ribs.  Each face uses a SmoothTriangle
+     * with per-vertex ellipsoid normals so the sunset light wraps smoothly
+     * around the surface instead of showing hard polygon edges.
+     *
+     * @param nLon longitude slices (≥ 2×nRibs for the ribs to resolve)
+     * @param nLat latitude stacks
+     * @param nRibs number of vertical ribs (each rib = one ridge + one valley)
+     */
+    private static void addRibbedBarrel(Scene scene, double cx, double cy, double cz,
+                                         double radius, double height,
+                                         int nLon, int nLat, int nRibs, Material mat) {
+        double H   = height / 2.0;  // half-height (Y semi-axis)
+        double R   = radius;        // XZ semi-axis (base)
+        double rd  = 0.18;          // rib depth fraction
+
+        Point[][]  pts = new Point[nLat+1][nLon+1];
+        Vector[][] vns = new Vector[nLat+1][nLon+1];
+
+        for (int vi=0; vi<=nLat; vi++) {
+            double v   = -Math.PI/2 + Math.PI*vi/nLat;
+            double sinV= Math.sin(v), cosV= Math.cos(v);
+            for (int ui=0; ui<=nLon; ui++) {
+                double u   = 2*Math.PI*ui/nLon;
+                double r   = R*(1 + rd*Math.cos(nRibs*u));
+                double x   = r*cosV*Math.cos(u);
+                double y   = H*sinV;
+                double z   = r*cosV*Math.sin(u);
+                pts[vi][ui]= new Point(cx+x, cy+H+y, cz+z);
+                // Ellipsoid normal: gradient of x²/R² + y²/H² + z²/R² = 1
+                vns[vi][ui]= toVec(new double[]{x/R, y/H, z/R});
+            }
+        }
+
+        for (int vi=0; vi<nLat; vi++) for (int ui=0; ui<nLon; ui++) {
+            Point p00=pts[vi][ui], p10=pts[vi+1][ui], p11=pts[vi+1][ui+1], p01=pts[vi][ui+1];
+            Vector n00=vns[vi][ui], n10=vns[vi+1][ui], n11=vns[vi+1][ui+1], n01=vns[vi][ui+1];
+
+            double sunDot;
+            try {
+                Vector avgN = n00.add(n10).add(n11).add(n01);
+                sunDot = avgN.normalize()
+                             .dotProduct(new Vector(SUN3D_X, SUN3D_Y, SUN3D_Z));
+            } catch (Exception e) { sunDot = 0; }
+            double ts = Math.max(0, Math.min(1, (sunDot+1)/2.0));
+            Color fc = new Color((int)(10+ts*65),(int)(42+ts*108),(int)(32-ts*12));
+
+            // Winding Triangle(p00,p10,p11) → outward for sphere (verified)
+            try { scene.geometries.add(new SmoothTriangle(p00,p10,p11,n00,n10,n11)
+                      .setEmission(fc).setMaterial(mat)); }
+            catch (IllegalArgumentException ignored) {}
+            try { scene.geometries.add(new SmoothTriangle(p00,p11,p01,n00,n11,n01)
+                      .setEmission(fc).setMaterial(mat)); }
+            catch (IllegalArgumentException ignored) {}
+        }
+    }
+
     /** Short wide barrel cactus: ribbed prism + dome sphere cap. */
     private static void addBarrelCactus(Scene scene, double cx, double cy, double cz,
                                          double radius, double height, Material mat) {
@@ -252,12 +535,13 @@ class MiniProject2Tests {
     private static Scene buildScene() {
         Scene scene = new Scene("Desert Sunset");
         scene.setBackground(new Color(52, 22, 68));
-        scene.setAmbientLight(new AmbientLight(new Color(42, 28, 18), new Double3(1)));
+        scene.setAmbientLight(new AmbientLight(new Color(28, 18, 10), new Double3(1)));
 
         Material flat     = new Material().setKD(0.88).setKS(0.10).setShininess(8);
         Material skyM     = new Material().setKD(0.78).setKS(0.08).setShininess(5);
         Material rockM    = new Material().setKD(0.72).setKS(0.25).setShininess(30);
-        Material cactM    = new Material().setKD(0.80).setKS(0.20).setShininess(22);
+        Material cactM    = new Material().setKD(0.80).setKS(0.35).setShininess(45)
+                                          .setRimLighting(new Color(220, 115, 40), 2.8);
         Material boulderM = new Material().setKD(0.72).setKS(0.28).setShininess(25);
 
         // ── Backdrop plane (warm horizon glow) ────────────────────────────
@@ -348,86 +632,14 @@ class MiniProject2Tests {
             }
         }
 
-        // ── Large flat-top mesa (left side, 12 faceted triangles) ─────────
-        {
-            final double mzF=-182, mzB=-220, myB=-62, myT=168;
-            Point bFL=new Point(-400,myB,mzF), bFM=new Point(-295,myB,mzF), bFR=new Point(-168,myB,mzF);
-            Point tFL=new Point(-378,myT,   mzF), tFM=new Point(-285,myT+14,mzF), tFR=new Point(-188,myT-8,mzF);
-            Point bBL=new Point(-400,myB,mzB),                                    bBR=new Point(-168,myB,mzB);
-            Point tBL=new Point(-378,myT,   mzB), tBM=new Point(-285,myT+14,mzB), tBR=new Point(-188,myT-8,mzB);
-            // Front face: left=deep shadow, right=sun-lit
-            scene.geometries.add(new Triangle(bFL,bFM,tFL).setEmission(new Color( 98,42,15)).setMaterial(rockM));
-            scene.geometries.add(new Triangle(bFM,tFM,tFL).setEmission(new Color(118,54,20)).setMaterial(rockM));
-            scene.geometries.add(new Triangle(bFM,bFR,tFM).setEmission(new Color(168,82,32)).setMaterial(rockM));
-            scene.geometries.add(new Triangle(bFR,tFR,tFM).setEmission(new Color(198,105,42)).setMaterial(rockM));
-            // Top face: lit warm gold
-            scene.geometries.add(new Triangle(tFL,tFM,tBL).setEmission(new Color(188,120,52)).setMaterial(rockM));
-            scene.geometries.add(new Triangle(tFM,tBM,tBL).setEmission(new Color(195,128,58)).setMaterial(rockM));
-            scene.geometries.add(new Triangle(tFM,tFR,tBR).setEmission(new Color(182,115,50)).setMaterial(rockM));
-            scene.geometries.add(new Triangle(tFM,tBR,tBM).setEmission(new Color(188,120,52)).setMaterial(rockM));
-            // Left side: deep shadow
-            scene.geometries.add(new Triangle(bFL,tFL,bBL).setEmission(new Color(68,30,12)).setMaterial(rockM));
-            scene.geometries.add(new Triangle(tFL,tBL,bBL).setEmission(new Color(75,34,13)).setMaterial(rockM));
-            // Right side: partial sunset light
-            scene.geometries.add(new Triangle(bFR,bBR,tFR).setEmission(new Color(148,70,28)).setMaterial(rockM));
-            scene.geometries.add(new Triangle(bBR,tBR,tFR).setEmission(new Color(138,65,25)).setMaterial(rockM));
-        }
-
-        // ── Far mountain ridge (z=-212, hazy dark silhouette) ────────────
-        // ridgeH(seed=0.8) gives a different peak pattern than seed=1.0,
-        // so the two ridges have naturally offset mountain positions.
-        {
-            final double mzFar = -212, mbase = BASE_Y;
-            final int N = 20;
-            final double startX = -450, step = 900.0 / (N-1);
-            double[] ht = new double[N];
-            for (int i = 0; i < N; i++) ht[i] = ridgeH(startX + i*step, 0.8, 115);
-            for (int i = 0; i < N-1; i++) {
-                double x0 = startX + i*step, x1 = x0 + step;
-                double h0 = ht[i], h1 = ht[i+1];
-                if (h0 < 1 && h1 < 1) continue;
-                double litF = Math.max(0, Math.min(1, (x0 + 225) / 450.0));
-                Color c = new Color(
-                    (int)(52 + litF*28), (int)(22 + litF*14), (int)(12 + litF*8));
-                // Guard each triangle: skip if the peak vertex coincides with a base vertex
-                if (h1 > 1.0)
-                    scene.geometries.add(new Triangle(
-                        new Point(x0,mbase,mzFar), new Point(x1,mbase,mzFar),
-                        new Point(x1,mbase+h1,mzFar)).setEmission(c).setMaterial(rockM));
-                if (h0 > 1.0)
-                    scene.geometries.add(new Triangle(
-                        new Point(x0,mbase,mzFar), new Point(x1,mbase+h1,mzFar),
-                        new Point(x0,mbase+h0,mzFar)).setEmission(c).setMaterial(rockM));
-            }
-        }
-
-        // ── Main mountain ridge (z=-190, complex jagged ridgeline) ─────────
-        {
-            final double mzMain = -190, mbase = BASE_Y;
-            final int N = 22;
-            final double startX = -440, step = 880.0 / (N-1);
-            double[] ht = new double[N];
-            for (int i = 0; i < N; i++) ht[i] = ridgeH(startX + i*step, 1.0, 155);
-            for (int i = 0; i < N-1; i++) {
-                double x0 = startX + i*step, x1 = x0 + step;
-                double h0 = ht[i], h1 = ht[i+1];
-                if (h0 < 1 && h1 < 1) continue;
-                double avgH = (h0 + h1) / 2.0;
-                double litF = Math.max(0, Math.min(1, (x0 + 222) / 444.0));
-                Color c = new Color(
-                    (int)(68 + litF*50 + avgH*0.06),
-                    (int)(30 + litF*26 + avgH*0.03),
-                    (int)(14 + litF*12 + avgH*0.01));
-                if (h1 > 1.0)
-                    scene.geometries.add(new Triangle(
-                        new Point(x0,mbase,mzMain), new Point(x1,mbase,mzMain),
-                        new Point(x1,mbase+h1,mzMain)).setEmission(c).setMaterial(rockM));
-                if (h0 > 1.0)
-                    scene.geometries.add(new Triangle(
-                        new Point(x0,mbase,mzMain), new Point(x1,mbase+h1,mzMain),
-                        new Point(x0,mbase+h0,mzMain)).setEmission(c).setMaterial(rockM));
-            }
-        }
+        // ── 3-D fractal mountain mass (Diamond-Square 33×33 heightmap) ───────
+        // Replaces the two flat ridge panels with a true volumetric mountain.
+        // 2048 SmoothTriangles with gradient-computed vertex normals let the
+        // sunset directional light wrap smoothly across every slope and ridge.
+        addFractalMountain(scene, rockM,
+            -450, 450,      // x extent
+            -268, -132,     // z: from deep background to just behind terrain
+            BASE_Y, 165.0); // base Y, peak scale
 
         // ── Boulders — 4 spheres scattered on terrain ─────────────────────
         Color boulderC = new Color(118, 62, 22);
@@ -439,8 +651,12 @@ class MiniProject2Tests {
                 .setEmission(boulderC).setMaterial(boulderM));
         }
 
-        // ── Saguaro cacti — 5 ribbed trunks with 2-segment ribbed arms ───
-        //   + 2 barrel cacti + 2 desert shrubs
+        // ── Saguaro cacti — 5 ribbed trunks with Bézier-curved arms ──────────
+        //   Arms are now cubic Bézier tubes (12 cross-sections × 8-sided ribbed
+        //   prism) using SmoothTriangles with per-vertex radial normals so light
+        //   wraps naturally around the curves.  The classic saguaro "droop then
+        //   sweep upward" silhouette comes from control-point placement.
+        //   + 2 ribbed-spheroid barrel cacti + 2 desert shrubs
         {
             double[][] saguaroPos = {
                 {-168,65},{-108,98},{52,40},{165,62},{238,90}
@@ -450,35 +666,37 @@ class MiniProject2Tests {
                 final double cy = BASE_Y + terrH(cx, cz);
                 final double tH = 55 + frac(cx*0.13+cz*0.19)*30;
 
-                // Ribbed trunk: 8 ribs = 16 sides (rounder appearance)
+                // Ribbed trunk: 8 ribs = 16-sided prism with per-face sun tinting
                 addRibbedTrunk(scene, cx, cy, cz, 4.5, tH, 8, cactM);
 
-                // Left arm (2-segment elbow) — ribbed prism arms
-                final double laY  = cy + tH*0.50;
-                final double laL1 = 14 + frac(cx*0.31+cz*0.19)*8;
-                final double laL2 = 13 + frac(cx*0.19+cz*0.27)*7;
-                final double elXL = cx + (-0.9060)*laL1, elYL = laY + 0.4229*laL1;
-                addRibbedArm(scene, cx, laY, cz, -0.9060, 0.4229, 0, 2.8, laL1, 4, cactM);
-                addRibbedArm(scene, elXL, elYL, cz, -0.40, 0.92, 0, 2.5, laL2, 4, cactM);
-                scene.geometries.add(new Sphere(
-                    new Point(elXL+(-0.40)*laL2, elYL+0.92*laL2, cz), 2.5)
-                    .setEmission(new Color(10,50,28)).setMaterial(cactM));
+                // ── Left arm: droop slightly then sweep up (classic saguaro curve) ──
+                final double laY = cy + tH*0.50;
+                final double laL = 20 + frac(cx*0.31+cz*0.19)*14; // total arm reach
+                // P1: 35% outward, slight dip (-5%) — arm initially goes outward
+                // P2: 80% outward, 38% height  — arm starts curving upward
+                // P3: 88% outward, 82% height  — tip nearly vertical
+                buildBezierArm(scene,
+                    new double[]{cx,         laY,              cz},
+                    new double[]{cx-laL*0.35, laY-laL*0.05,   cz},
+                    new double[]{cx-laL*0.80, laY+laL*0.38,   cz},
+                    new double[]{cx-laL*0.88, laY+laL*0.82,   cz},
+                    2.8, 12, 8, cactM);
 
-                // Right arm (2-segment elbow) — ribbed prism arms
-                final double raY  = cy + tH*0.42;
-                final double raL1 = 12 + frac(cx*0.27+cz*0.35)*8;
-                final double raL2 = 11 + frac(cx*0.35+cz*0.21)*6;
-                final double elXR = cx + 0.8829*raL1, elYR = raY + 0.4694*raL1;
-                addRibbedArm(scene, cx, raY, cz, 0.8829, 0.4694, 0, 2.8, raL1, 4, cactM);
-                addRibbedArm(scene, elXR, elYR, cz, 0.38, 0.93, 0, 2.5, raL2, 4, cactM);
-                scene.geometries.add(new Sphere(
-                    new Point(elXR+0.38*raL2, elYR+0.93*raL2, cz), 2.5)
-                    .setEmission(new Color(10,50,28)).setMaterial(cactM));
+                // ── Right arm (mirror) ───────────────────────────────────────────────
+                final double raY = cy + tH*0.42;
+                final double raL = 18 + frac(cx*0.27+cz*0.35)*12;
+                buildBezierArm(scene,
+                    new double[]{cx,         raY,              cz},
+                    new double[]{cx+raL*0.35, raY-raL*0.05,   cz},
+                    new double[]{cx+raL*0.80, raY+raL*0.38,   cz},
+                    new double[]{cx+raL*0.88, raY+raL*0.82,   cz},
+                    2.8, 12, 8, cactM);
             }
 
-            // Barrel cacti — bigger so they're clearly visible
-            addBarrelCactus(scene, -40, BASE_Y+terrH(-40,-12), -12,  9.0, 24, cactM);
-            addBarrelCactus(scene,  95, BASE_Y+terrH( 95, 35),  35,  7.5, 19, cactM);
+            // Barrel cacti — ribbed UV-spheroid with smooth shading (32 lon × 16 lat, 20 ribs)
+            double bcy1 = BASE_Y+terrH(-40,-12), bcy2 = BASE_Y+terrH(95,35);
+            addRibbedBarrel(scene, -40, bcy1, -12,  9.0, 24, 32, 16, 20, cactM);
+            addRibbedBarrel(scene,  95, bcy2,  35,  7.5, 19, 32, 16, 20, cactM);
 
             // Desert shrubs — small sphere clusters for ground cover
             Material shrubM = new Material().setKD(0.75).setKS(0.12).setShininess(8);
@@ -488,9 +706,11 @@ class MiniProject2Tests {
 
         // ── Lights ────────────────────────────────────────────────────────
         // 1. Ambient: set above.
-        // 2. DirectionalLight: low-angle sunset sweeping from the right.
+        // 2. DirectionalLight: ~7° above horizon — nearly flat sunset angle so
+        //    cacti and mountains cast long geometric shadows across the terrain.
+        //    Direction vector (-0.888, -0.122, 0.444) normalises to elevation ≈7°.
         scene.lights.add(new DirectionalLight(
-            new Color(255, 165, 55), new Vector(-0.8, -0.38, 0.4)));
+            new Color(255, 165, 55), new Vector(-0.888, -0.122, 0.444)));
         // 3. PointLight at the sun sphere, warm with soft-shadow radius.
         scene.lights.add(new PointLight(
             new Color(255, 198, 88), SUN_PT)

@@ -109,8 +109,24 @@ public class SimpleRayTracer extends RayTracerBase {
 
     private Color calcColor(Intersection intersection, Ray ray, int level, Double3 k) {
         Color emission = resolveEmission(intersection, ray);
-        Color color = emission.add(calcColorLocalEffects(intersection, ray, k));
+        Color color = emission.add(calcRimEffect(intersection, ray))
+                              .add(calcColorLocalEffects(intersection, ray, k));
         return level == 1 ? color : color.add(calcGlobalEffects(intersection, ray, level, k));
+    }
+
+    /**
+     * Rim (Fresnel edge) glow: surfaces where the view ray grazes the normal
+     * (|N·V| → 0, i.e. silhouette edges) receive an additive boost of
+     * {@link primitives.Material#rimColor}.  Simulates warm sunset back-light
+     * catching the edges of organic shapes.
+     */
+    private Color calcRimEffect(Intersection intersection, Ray ray) {
+        primitives.Material mat = intersection.material;
+        if (mat.rimPower <= 0.0 || mat.rimColor == null) return Color.BLACK;
+        Vector n = intersection.geometry.getNormal(intersection.p);
+        double nv = Math.abs(primitives.Util.alignZero(n.dotProduct(ray.direction())));
+        double factor = Math.pow(1.0 - Math.min(nv, 1.0), mat.rimPower);
+        return mat.rimColor.scale(factor);
     }
 
     private Color resolveEmission(Intersection intersection, Ray ray) {
