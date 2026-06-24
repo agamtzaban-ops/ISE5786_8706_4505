@@ -655,14 +655,7 @@ class MiniProject2Tests {
             .setEmission(new Color(35, 100, 25)).setMaterial(mat));
     }
 
-    /** Small desert shrub -- cluster of four dark-green spheres. */
-    private static void addShrub(Scene scene, double cx, double cy, double cz, Material mat) {
-        Color c = new Color(28, 62, 18);
-        scene.geometries.add(new Sphere(new Point(cx,   cy+3.5, cz),    5.0).setEmission(c).setMaterial(mat));
-        scene.geometries.add(new Sphere(new Point(cx-4, cy+2.5, cz+2),  3.8).setEmission(c).setMaterial(mat));
-        scene.geometries.add(new Sphere(new Point(cx+3, cy+2.5, cz-2),  3.5).setEmission(c).setMaterial(mat));
-        scene.geometries.add(new Sphere(new Point(cx+1, cy+2.0, cz+3.5),3.0).setEmission(c).setMaterial(mat));
-    }
+
 
     // ========================= Scene =========================
 
@@ -825,10 +818,7 @@ class MiniProject2Tests {
             addRibbedBarrel(scene,  95, bcy2,  35,  7.5, 19, 32, 16, 20, cactM);
             addThornsOnBarrel(scene,  95, bcy2,  35,  7.5, 19, 20, thornC, thornM);
 
-            // Desert shrubs -- small sphere clusters for ground cover
-            Material shrubM = new Material().setKD(0.75).setKS(0.12).setShininess(8);
-            addShrub(scene, -210, BASE_Y+terrH(-210, 80),  80, shrubM);
-            addShrub(scene,  280, BASE_Y+terrH( 280, 55),  55, shrubM);
+
         }
 
         // -- Lights --------------------------------------------------------
