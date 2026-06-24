@@ -7,9 +7,9 @@ import primitives.*;
 import scene.Scene;
 
 /**
- * Mini-Project 2 — Performance Acceleration (BVH).
+ * Mini-Project 2 -- Performance Acceleration (BVH).
  *
- * <p>Scene: "Desert Sunset" v2 — dramatic low-poly canyon at golden hour with:
+ * <p>Scene: "Desert Sunset" v2 -- dramatic low-poly canyon at golden hour with:
  * multi-layer sun glow (KT halos + glowFalloff limb-darkening), two-layer
  * procedural mountain ridges, 2-segment curved cactus arms, 6-octave terrain.</p>
  */
@@ -29,7 +29,7 @@ class MiniProject2Tests {
     private static final int FINAL_AA  = 9;
     private static final int FINAL_SS  = 3;
 
-    // Sun world position — shared by sphere, lights, and ray emitter
+    // Sun world position -- shared by sphere, lights, and ray emitter
     private static final Point SUN_PT = new Point(188, 70, -545);
 
     // ========================= Helpers =========================
@@ -49,15 +49,20 @@ class MiniProject2Tests {
               + 0.4 * Math.cos(x * 0.203 - z * 0.178);
     }
 
-    /** Sunset desert palette: burnt-orange low, warm gold high, haze at distance. */
+    /**
+     * Sunset desert palette: burnt-orange low, warm gold high, atmospheric haze at distance.
+     * Uses a sin-based hash to decorrelate adjacent triangles that share the same row,
+     * ensuring each triangle has a visually distinct colour rather than a banded look.
+     */
     private static Color terrC(double x, double z, double h) {
         double t    = Math.max(0, Math.min(1, (h + 15.2) / 30.4));
-        double rf   = frac(x * 0.073 + z * 0.097 + x * z * 3e-5);
+        // Hash that gives independent pseudo-random value per triangle centroid
+        double rf   = frac(Math.sin(x * 127.1 + z * 311.7) * 43758.5);
         double haze = Math.max(0, Math.min(1, (-z - 20) / 260.0));
         return new Color(
-            Math.min(255, (int)(108 + t * 95 + rf * 25 + haze * 55)),
-            Math.min(255, (int)( 52 + t * 62 + rf * 15 + haze * 40)),
-            Math.min(255, (int)( 12 + t * 16 + rf *  8 + haze * 30)));
+            Math.min(255, (int)(100 + t * 105 + rf * 45 + haze * 55)),
+            Math.min(255, (int)( 45 + t *  65 + rf * 22 + haze * 40)),
+            Math.min(255, (int)(  8 + t *  18 + rf * 10 + haze * 30)));
     }
 
     /** 3-stop sunset gradient: horizon gold-orange, mid red-orange, zenith deep purple. */
@@ -137,14 +142,14 @@ class MiniProject2Tests {
             double midZ = (vz[i] + vz[j]) / 2 - cz;
             double mag  = Math.sqrt(midX*midX + midZ*midZ);
             if (mag < 1e-9) continue;
-            // How much this face points toward the sun (−1 = full shadow, +1 = full sun)
+            // How much this face points toward the sun (-1 = full shadow, +1 = full sun)
             double sunDot = (midX/mag) * SUN_HORIZ_X + (midZ/mag) * SUN_HORIZ_Z;
             double t = Math.max(0, Math.min(1, (sunDot + 1) / 2.0));
-            // Deep blue-green in shadow valleys → vivid yellow-green on sun ridges
+            // Deep blue-green in shadow valleys -> vivid yellow-green on sun ridges
             Color fc = new Color(
-                (int)(10 + t * 65),   // R: 10 (shadow) → 75 (sun)
-                (int)(42 + t * 108),  // G: 42 → 150
-                (int)(32 - t *  12)); // B: 32 (cool) → 20 (warm)
+                (int)(10 + t * 65),   // R: 10 (shadow) -> 75 (sun)
+                (int)(42 + t * 108),  // G: 42 -> 150
+                (int)(32 - t *  12)); // B: 32 (cool) -> 20 (warm)
             Point bl = new Point(vx[i], cy,          vz[i]);
             Point br = new Point(vx[j], cy,          vz[j]);
             Point tl = new Point(vx[i], cy + height, vz[i]);
@@ -153,7 +158,7 @@ class MiniProject2Tests {
             scene.geometries.add(new Triangle(bl, tr, br).setEmission(fc).setMaterial(mat));
             scene.geometries.add(new Triangle(bl, tl, tr).setEmission(fc).setMaterial(mat));
         }
-        // Top cap — fan from center, CCW from above → upward normals
+        // Top cap -- fan from center, CCW from above -> upward normals
         Color topC = new Color(42, 112, 35);
         Point topPt = new Point(cx, cy + height, cz);
         for (int i = 0; i < N; i++) {
@@ -179,7 +184,7 @@ class MiniProject2Tests {
         double dMag = Math.sqrt(dirX*dirX + dirY*dirY + dirZ*dirZ);
         double dx = dirX/dMag, dy = dirY/dMag, dz = dirZ/dMag;
 
-        // u ⊥ d via Gram-Schmidt from (0,0,1); fall back to (1,0,0) if d≈(0,0,±1)
+        // u - d via Gram-Schmidt from (0,0,1); fall back to (1,0,0) if d~=(0,0,+-1)
         double ux = 0, uy = 0, uz = 1;
         if (Math.abs(dz) > 0.9) { ux = 1; uy = 0; uz = 0; }
         double dot = ux*dx + uy*dy + uz*dz;
@@ -187,7 +192,7 @@ class MiniProject2Tests {
         double uMag = Math.sqrt(ux*ux + uy*uy + uz*uz);
         ux /= uMag; uy /= uMag; uz /= uMag;
 
-        // v = d × u  (completes right-hand frame)
+        // v = d x u  (completes right-hand frame)
         double vx = dy*uz - dz*uy, vy = dz*ux - dx*uz, vz2 = dx*uy - dy*ux;
 
         int N = nRibs * 2;
@@ -250,7 +255,7 @@ class MiniProject2Tests {
     // ========================= Diamond-Square mountain =======================
 
     /**
-     * Generates a (2^n+1)×(2^n+1) heightmap via the Diamond-Square algorithm.
+     * Generates a (2^n+1)x(2^n+1) heightmap via the Diamond-Square algorithm.
      * Values are in an arbitrary range; caller normalizes and scales.
      *
      * @param n         grid exponent (grid size = 2^n + 1)
@@ -261,7 +266,7 @@ class MiniProject2Tests {
         int sz = (1 << n) + 1;
         double[][] h = new double[sz][sz];
         java.util.Random rng = new java.util.Random(seed);
-        // Corner seeds — zero so edges fade to base level
+        // Corner seeds -- zero so edges fade to base level
         h[0][0] = h[0][sz-1] = h[sz-1][0] = h[sz-1][sz-1] = 0;
 
         double scale = 1.0;
@@ -289,10 +294,10 @@ class MiniProject2Tests {
 
     /**
      * Replaces the two flat ridge panels with a true 3-D fractal mountain mass.
-     * Uses a 33×33 Diamond-Square heightmap tessellated into SmoothTriangles
+     * Uses a 33x33 Diamond-Square heightmap tessellated into SmoothTriangles
      * with per-vertex gradient normals so the sunset light wraps across slopes.
      *
-     * The mountain occupies x∈[xMin,xMax], z∈[zBack,zFront] and rises to
+     * The mountain occupies xin[xMin,xMax], zin[zBack,zFront] and rises to
      * {@code peakScale} units above {@code baseY}.  A sinusoidal X-envelope
      * plus a linear Z-taper (tall at back, zero at front) give natural silhouettes.
      */
@@ -300,7 +305,7 @@ class MiniProject2Tests {
                                             double xMin, double xMax,
                                             double zBack, double zFront,
                                             double baseY, double peakScale) {
-        final int n = 5;                // 33×33 grid
+        final int n = 5;                // 33x33 grid
         double[][] raw = diamondSquare(n, 0.62, 0xDEAD_BEEFL);
         int sz = raw.length; // 33
 
@@ -312,7 +317,7 @@ class MiniProject2Tests {
         double dx = (xMax-xMin)/(sz-1);
         double dz = (zFront-zBack)/(sz-1); // positive: z increases toward camera
 
-        // World heights h[row][col], row→z, col→x
+        // World heights h[row][col], row->z, col->x
         double[][] h = new double[sz][sz];
         for (int r=0; r<sz; r++) for (int c=0; c<sz; c++) {
             double norm = (raw[r][c]-rMin)/rRange;
@@ -348,7 +353,7 @@ class MiniProject2Tests {
             int cb = (int)(12 + litF*10 + avgH*0.02);
             Color mc = new Color(Math.min(255,cr), Math.min(255,cg), Math.min(255,cb));
 
-            // Winding Triangle(p00,p11,p01) and Triangle(p00,p10,p11) → upward face normals
+            // Winding Triangle(p00,p11,p01) and Triangle(p00,p10,p11) -> upward face normals
             scene.geometries.add(new SmoothTriangle(
                 pts[r][c], pts[r+1][c], pts[r+1][c+1],
                 vn[r][c],  vn[r+1][c], vn[r+1][c+1])
@@ -363,9 +368,9 @@ class MiniProject2Tests {
     // ========================= Bezier-tube cactus arms =======================
 
     /**
-     * Builds a curved cactus arm as a cubic Bézier tube mesh.
+     * Builds a curved cactus arm as a cubic Bezier tube mesh.
      *
-     * The arm spine follows the Bézier path P0→P1→P2→P3.  At each of
+     * The arm spine follows the Bezier path P0->P1->P2->P3.  At each of
      * {@code nSamples} curve samples a {@code nSides}-sided ribbed circle
      * is extruded perpendicular to the tangent using a rotation-minimising
      * (parallel-transport) frame so the cross-section never flip-twists.
@@ -376,7 +381,7 @@ class MiniProject2Tests {
                                         double[] P0, double[] P1, double[] P2, double[] P3,
                                         double radius, int nSamples, int nSides, Material mat,
                                         Color thornColor, Material thornMat) {
-        // ── Sample the Bezier curve ──────────────────────────────────────────
+        // -- Sample the Bezier curve ------------------------------------------
         double[][] pos  = new double[nSamples][3];
         double[][] tang = new double[nSamples][3];
         for (int k=0; k<nSamples; k++) {
@@ -388,8 +393,8 @@ class MiniProject2Tests {
             }
         }
 
-        // ── Build rotation-minimising frame via parallel transport ───────────
-        double[][] us = new double[nSamples][3]; // first frame axis (⊥ to tangent)
+        // -- Build rotation-minimising frame via parallel transport -----------
+        double[][] us = new double[nSamples][3]; // first frame axis (- to tangent)
         double[][] vs = new double[nSamples][3]; // second frame axis
         {
             double[] T0 = normalize3(tang[0]);
@@ -409,7 +414,7 @@ class MiniProject2Tests {
             }
         }
 
-        // ── Extrude ribbed cross-sections ────────────────────────────────────
+        // -- Extrude ribbed cross-sections ------------------------------------
         double ridgeR = radius+0.5, valleyR = Math.max(0.15, radius-0.35);
         Point[][] circ  = new Point[nSamples][nSides];
         Vector[][] vnrm = new Vector[nSamples][nSides];
@@ -429,8 +434,8 @@ class MiniProject2Tests {
             }
         }
 
-        // ── Tessellate tube into SmoothTriangles ────────────────────────────
-        // Winding (bik, bi1k, bjk) → outward normal (verified analytically for tube)
+        // -- Tessellate tube into SmoothTriangles ----------------------------
+        // Winding (bik, bi1k, bjk) -> outward normal (verified analytically for tube)
         for (int k=0; k<nSamples-1; k++) for (int i=0; i<nSides; i++) {
             int j = (i+1)%nSides;
             // Sun colour from average outward direction
@@ -453,11 +458,11 @@ class MiniProject2Tests {
                 .setEmission(fc).setMaterial(mat));
         }
 
-        // ── Thorns at Bézier tube ridge points ───────────────────────────────
+        // -- Thorns at Bezier tube ridge points -------------------------------
         // Added inline to reuse the already-computed pos[][], us[][], vs[][]
-        // frame — guarantees thorns land exactly on the rib peaks.
+        // frame -- guarantees thorns land exactly on the rib peaks.
         // Thorns fire at every other sample (k odd) and every ridge (even i).
-        // Count per arm: ⌊nSamples/2⌋ × (nSides/2) × 2 ≈ 5 × 4 × 2 = 40 tris
+        // Count per arm: -nSamples/2- x (nSides/2) x 2 ~= 5 x 4 x 2 = 40 tris
         if (thornMat != null) {
             final double THORN_L = 2.5;  // outward reach
             final double THORN_H = 0.26; // base half-spread along tangent
@@ -472,7 +477,7 @@ class MiniProject2Tests {
                     double oy = ridgeR * (ca*us[k][1] + sa*vs[k][1]);
                     double oz = ridgeR * (ca*us[k][2] + sa*vs[k][2]);
                     double rx = pos[k][0]+ox, ry = pos[k][1]+oy, rz = pos[k][2]+oz;
-                    // Outward normal ⊥ tangent
+                    // Outward normal - tangent
                     double dDot = ox*Tk[0] + oy*Tk[1] + oz*Tk[2];
                     double[] outn = normalize3(new double[]{
                         ox - dDot*Tk[0], oy - dDot*Tk[1], oz - dDot*Tk[2]});
@@ -499,7 +504,7 @@ class MiniProject2Tests {
      * with per-vertex ellipsoid normals so the sunset light wraps smoothly
      * around the surface instead of showing hard polygon edges.
      *
-     * @param nLon longitude slices (≥ 2×nRibs for the ribs to resolve)
+     * @param nLon longitude slices (>= 2xnRibs for the ribs to resolve)
      * @param nLat latitude stacks
      * @param nRibs number of vertical ribs (each rib = one ridge + one valley)
      */
@@ -523,7 +528,7 @@ class MiniProject2Tests {
                 double y   = H*sinV;
                 double z   = r*cosV*Math.sin(u);
                 pts[vi][ui]= new Point(cx+x, cy+H+y, cz+z);
-                // Ellipsoid normal: gradient of x²/R² + y²/H² + z²/R² = 1
+                // Ellipsoid normal: gradient of xֲ²/Rֲ² + yֲ²/Hֲ² + zֲ²/Rֲ² = 1
                 vns[vi][ui]= toVec(new double[]{x/R, y/H, z/R});
             }
         }
@@ -541,7 +546,7 @@ class MiniProject2Tests {
             double ts = Math.max(0, Math.min(1, (sunDot+1)/2.0));
             Color fc = new Color((int)(10+ts*65),(int)(42+ts*108),(int)(32-ts*12));
 
-            // Winding Triangle(p00,p10,p11) → outward for sphere (verified)
+            // Winding Triangle(p00,p10,p11) -> outward for sphere (verified)
             try { scene.geometries.add(new SmoothTriangle(p00,p10,p11,n00,n10,n11)
                       .setEmission(fc).setMaterial(mat)); }
             catch (IllegalArgumentException ignored) {}
@@ -560,7 +565,7 @@ class MiniProject2Tests {
      * Alternate rows are staggered by half a rib-angle, matching the helical
      * thorn-cluster growth pattern of real cacti.
      *
-     * Triangle count per trunk: rows × nRibs × 2  (≈ 9 × 8 × 2 = 144)
+     * Triangle count per trunk: rows x nRibs x 2  (~= 9 x 8 x 2 = 144)
      */
     private static void addThornsOnTrunk(Scene scene,
             double cx, double cy, double cz,
@@ -595,11 +600,11 @@ class MiniProject2Tests {
 
     /**
      * Adds thorn spikes to the rib peaks of a ribbed UV-spheroid barrel cactus.
-     * Thorns are placed at u = 2π·k/nRibs (rib peaks) across several latitude
-     * bands (poles excluded).  The spike points along the ellipsoid gradient —
+     * Thorns are placed at u = 2ֿ€ֲ·k/nRibs (rib peaks) across several latitude
+     * bands (poles excluded).  The spike points along the ellipsoid gradient --
      * the same outward direction as the per-vertex normal used for smooth shading.
      *
-     * Triangle count per barrel: nLatThorns × nRibs × 2  (≈ 5 × 20 × 2 = 200)
+     * Triangle count per barrel: nLatThorns x nRibs x 2  (~= 5 x 20 x 2 = 200)
      */
     private static void addThornsOnBarrel(Scene scene,
             double cx, double cy, double cz,
@@ -613,7 +618,7 @@ class MiniProject2Tests {
 
         final int nLatThorns = 5;
         for (int vi = 0; vi < nLatThorns; vi++) {
-            // 15% → 85% of latitude to avoid pole artifacts
+            // 15% -> 85% of latitude to avoid pole artifacts
             double vFrac = 0.15 + 0.70 * vi / (double)(nLatThorns - 1);
             double v    = -Math.PI / 2 + Math.PI * vFrac;
             double sinV = Math.sin(v), cosV = Math.cos(v);
@@ -650,7 +655,7 @@ class MiniProject2Tests {
             .setEmission(new Color(35, 100, 25)).setMaterial(mat));
     }
 
-    /** Small desert shrub — cluster of four dark-green spheres. */
+    /** Small desert shrub -- cluster of four dark-green spheres. */
     private static void addShrub(Scene scene, double cx, double cy, double cz, Material mat) {
         Color c = new Color(28, 62, 18);
         scene.geometries.add(new Sphere(new Point(cx,   cy+3.5, cz),    5.0).setEmission(c).setMaterial(mat));
@@ -666,22 +671,21 @@ class MiniProject2Tests {
         scene.setBackground(new Color(52, 22, 68));
         scene.setAmbientLight(new AmbientLight(new Color(28, 18, 10), new Double3(1)));
 
-        Material flat     = new Material().setKD(0.88).setKS(0.10).setShininess(8);
-        Material skyM     = new Material().setKD(0.78).setKS(0.08).setShininess(5);
-        Material rockM    = new Material().setKD(0.72).setKS(0.25).setShininess(30);
-        Material cactM    = new Material().setKD(0.80).setKS(0.35).setShininess(45)
-                                          .setRimLighting(new Color(220, 115, 40), 2.8);
-        Material boulderM = new Material().setKD(0.72).setKS(0.28).setShininess(25);
+        Material flat  = new Material().setKD(0.88).setKS(0.10).setShininess(8);
+        Material skyM  = new Material().setKD(0.78).setKS(0.08).setShininess(5);
+        Material rockM = new Material().setKD(0.72).setKS(0.25).setShininess(30);
+        Material cactM = new Material().setKD(0.80).setKS(0.35).setShininess(45)
+                                       .setRimLighting(new Color(220, 115, 40), 2.8);
 
-        // ── Backdrop plane (warm horizon glow) ────────────────────────────
+        // -- Backdrop plane (warm horizon glow) ----------------------------
         scene.geometries.add(new Plane(new Point(0, 0, -700), new Vector(0, 0, 1))
             .setEmission(new Color(212, 122, 35)).setMaterial(skyM));
 
-        // ── Sun — 4 concentric spheres producing a physical bloom / corona ─
+        // -- Sun -- 4 concentric spheres producing a physical bloom / corona -
         //
         // Each outer shell is transparent (KT) so camera rays pass inward.
-        // glowFalloff creates limb-darkening: bright at centre (N·V=1),
-        // fades to black at silhouette (N·V=0) so the glow blends smoothly
+        // glowFalloff creates limb-darkening: bright at centre (Nֲ·V=1),
+        // fades to black at silhouette (Nֲ·V=0) so the glow blends smoothly
         // into the surrounding sky instead of showing a hard sphere edge.
         //
         //  Layer         radius   emission             glowFalloff   KT
@@ -710,7 +714,7 @@ class MiniProject2Tests {
                 .setGlowFalloff(0.18))
             .setLightSource());
 
-        // ── Sky — 280 triangles, 3-stop sunset gradient ───────────────────
+        // -- Sky -- 280 triangles, 3-stop sunset gradient -------------------
         final double SX0 = -700, SX1 = 700, SZ = -600;
         final double SY0 = -88,  SY1 = 560;
         double sdx = (SX1 - SX0) / SKY_COLS, sdy = (SY1 - SY0) / SKY_ROWS;
@@ -728,7 +732,7 @@ class MiniProject2Tests {
             }
         }
 
-        // ── Sun light rays — 9 fan triangles at z=-590 ───────────────────
+        // -- Sun light rays -- 9 fan triangles at z=-590 -------------------
         {
             final double lrX = 188, lrY = 70, lrZ = -590;
             Point origin = new Point(lrX, lrY, lrZ);
@@ -745,7 +749,7 @@ class MiniProject2Tests {
             }
         }
 
-        // ── Terrain — 1568 triangles (BVH stress-test) ────────────────────
+        // -- Terrain -- 1568 triangles (BVH stress-test) --------------------
         double tdx = (TX1-TX0)/GRID, tdz = (TZ1-TZ0)/GRID;
         for (int gz = 0; gz < GRID; gz++) {
             for (int gx = 0; gx < GRID; gx++) {
@@ -761,31 +765,21 @@ class MiniProject2Tests {
             }
         }
 
-        // ── 3-D fractal mountain mass (Diamond-Square 33×33 heightmap) ───────
+        // -- 3-D fractal mountain mass (Diamond-Square 33x33 heightmap) -------
         // Replaces the two flat ridge panels with a true volumetric mountain.
         // 2048 SmoothTriangles with gradient-computed vertex normals let the
         // sunset directional light wrap smoothly across every slope and ridge.
         addFractalMountain(scene, rockM,
             -450, 450,      // x extent
-            -268, -132,     // z: from deep background to just behind terrain
+            -268, -130,     // z: aligned with terrain back edge (TZ0) to close the seam
             BASE_Y, 165.0); // base Y, peak scale
 
-        // ── Boulders — 4 spheres scattered on terrain ─────────────────────
-        Color boulderC = new Color(118, 62, 22);
-        double[][] boulderDef = {{-85,52,8.5},{125,25,6.5},{-35,118,11},{182,78,7.5}};
-        for (double[] b : boulderDef) {
-            double bx=b[0], bz=b[1], br=b[2];
-            scene.geometries.add(new Sphere(
-                new Point(bx, BASE_Y+terrH(bx,bz)+br-2.5, bz), br)
-                .setEmission(boulderC).setMaterial(boulderM));
-        }
-
-        // ── Saguaro cacti — 5 ribbed trunks with Bézier-curved arms ──────────
+        // -- Saguaro cacti -- 5 ribbed trunks with Bezier-curved arms ----------
         //   + procedural thorns on every rib of trunks, arms, and barrel cacti.
         //   Thorn material: pale straw-yellow, high specular, rim-lit so the
         //   low sunset light catches each spine with a warm golden glint.
         {
-            // Thorn material — distinct from cactus body, catches rim lighting
+            // Thorn material -- distinct from cactus body, catches rim lighting
             Color thornC = new Color(222, 208, 145);
             Material thornM = new Material()
                     .setKD(0.50).setKS(0.55).setShininess(60)
@@ -803,7 +797,7 @@ class MiniProject2Tests {
                 addRibbedTrunk(scene, cx, cy, cz, 4.5, tH, 8, cactM);
                 addThornsOnTrunk(scene, cx, cy, cz, 4.5, tH, 8, thornC, thornM);
 
-                // ── Left arm: droop slightly then sweep up (classic saguaro curve) ──
+                // -- Left arm: droop slightly then sweep up (classic saguaro curve) --
                 final double laY = cy + tH*0.50;
                 final double laL = 20 + frac(cx*0.31+cz*0.19)*14;
                 buildBezierArm(scene,
@@ -813,7 +807,7 @@ class MiniProject2Tests {
                     new double[]{cx-laL*0.88, laY+laL*0.82,   cz},
                     2.8, 12, 8, cactM, thornC, thornM);
 
-                // ── Right arm (mirror) ─────────────────────────────────────────────
+                // -- Right arm (mirror) ---------------------------------------------
                 final double raY = cy + tH*0.42;
                 final double raL = 18 + frac(cx*0.27+cz*0.35)*12;
                 buildBezierArm(scene,
@@ -824,24 +818,24 @@ class MiniProject2Tests {
                     2.8, 12, 8, cactM, thornC, thornM);
             }
 
-            // Barrel cacti — ribbed UV-spheroid + ellipsoid-gradient thorns
+            // Barrel cacti -- ribbed UV-spheroid + ellipsoid-gradient thorns
             double bcy1 = BASE_Y+terrH(-40,-12), bcy2 = BASE_Y+terrH(95,35);
             addRibbedBarrel(scene, -40, bcy1, -12,  9.0, 24, 32, 16, 20, cactM);
             addThornsOnBarrel(scene, -40, bcy1, -12,  9.0, 24, 20, thornC, thornM);
             addRibbedBarrel(scene,  95, bcy2,  35,  7.5, 19, 32, 16, 20, cactM);
             addThornsOnBarrel(scene,  95, bcy2,  35,  7.5, 19, 20, thornC, thornM);
 
-            // Desert shrubs — small sphere clusters for ground cover
+            // Desert shrubs -- small sphere clusters for ground cover
             Material shrubM = new Material().setKD(0.75).setKS(0.12).setShininess(8);
             addShrub(scene, -210, BASE_Y+terrH(-210, 80),  80, shrubM);
             addShrub(scene,  280, BASE_Y+terrH( 280, 55),  55, shrubM);
         }
 
-        // ── Lights ────────────────────────────────────────────────────────
+        // -- Lights --------------------------------------------------------
         // 1. Ambient: set above.
-        // 2. DirectionalLight: ~7° above horizon — nearly flat sunset angle so
+        // 2. DirectionalLight: ~7deg above horizon -- nearly flat sunset angle so
         //    cacti and mountains cast long geometric shadows across the terrain.
-        //    Direction vector (-0.888, -0.122, 0.444) normalises to elevation ≈7°.
+        //    Direction vector (-0.888, -0.122, 0.444) normalises to elevation ~=7deg.
         scene.lights.add(new DirectionalLight(
             new Color(255, 165, 55), new Vector(-0.888, -0.122, 0.444)));
         // 3. PointLight at the sun sphere, warm with soft-shadow radius.
@@ -948,38 +942,112 @@ class MiniProject2Tests {
         return cur == 0 ? Double.POSITIVE_INFINITY : (double) base / cur;
     }
 
+    // ========================= Anti-Aliasing comparison tests =========================
+
+    /** Renders without anti-aliasing (one ray per pixel). */
+    @Test
+    void testNoAntiAliasing() {
+        Scene scene = buildScene();
+        scene.geometries.buildBVH();
+        SimpleRayTracer tracer = new SimpleRayTracer(scene).setSoftShadowSamples(1);
+        System.out.println("=== No Anti-Aliasing ===");
+        long start = System.currentTimeMillis();
+        buildCameraBuilder(scene, tracer)
+                .setAntiAliasingSamples(1).setMultithreading(-2).build()
+                .renderImage().writeToImage("mp2_no_AA");
+        System.out.printf("Render time (no AA): %,d ms%n", System.currentTimeMillis() - start);
+    }
+
+    /** Renders with anti-aliasing (FINAL_AA x FINAL_AA grid = smooth curves). */
+    @Test
+    void testWithAntiAliasing() {
+        Scene scene = buildScene();
+        scene.geometries.buildBVH();
+        SimpleRayTracer tracer = new SimpleRayTracer(scene).setSoftShadowSamples(1);
+        System.out.printf("=== With Anti-Aliasing %dx%d ===%n", FINAL_AA, FINAL_AA);
+        long start = System.currentTimeMillis();
+        buildCameraBuilder(scene, tracer)
+                .setAntiAliasingSamples(FINAL_AA).setMultithreading(-2).build()
+                .renderImage().writeToImage("mp2_with_AA");
+        System.out.printf("Render time (AA %dx%d): %,d ms%n",
+                FINAL_AA, FINAL_AA, System.currentTimeMillis() - start);
+    }
+
+    // ========================= Soft-Shadow comparison tests =========================
+
+    /** Renders with hard shadows (one shadow ray -- no area sampling). */
+    @Test
+    void testNoSoftShadows() {
+        Scene scene = buildScene();
+        scene.geometries.buildBVH();
+        SimpleRayTracer tracer = new SimpleRayTracer(scene).setSoftShadowSamples(1);
+        System.out.println("=== No Soft Shadows ===");
+        long start = System.currentTimeMillis();
+        buildCameraBuilder(scene, tracer)
+                .setAntiAliasingSamples(1).setMultithreading(-2).build()
+                .renderImage().writeToImage("mp2_no_SS");
+        System.out.printf("Render time (no SS): %,d ms%n", System.currentTimeMillis() - start);
+    }
+
+    /** Renders with soft shadows (FINAL_SS x FINAL_SS shadow rays). */
+    @Test
+    void testWithSoftShadows() {
+        Scene scene = buildScene();
+        scene.geometries.buildBVH();
+        SimpleRayTracer tracer = new SimpleRayTracer(scene)
+                .setSoftShadowSamples(FINAL_SS)
+                .setSamplingPattern(Blackboard.SamplingPattern.JITTERED);
+        System.out.printf("=== With Soft Shadows %dx%d ===%n", FINAL_SS, FINAL_SS);
+        long start = System.currentTimeMillis();
+        buildCameraBuilder(scene, tracer)
+                .setAntiAliasingSamples(1).setMultithreading(-2).build()
+                .renderImage().writeToImage("mp2_with_SS");
+        System.out.printf("Render time (SS %dx%d): %,d ms%n",
+                FINAL_SS, FINAL_SS, System.currentTimeMillis() - start);
+    }
+
+    // ========================= Combined AA + SS test =========================
+
+    /**
+     * Side-by-side comparison: baseline (no AA, no SS) vs full quality (AA + SS).
+     * Both renders use BVH + multithreading for maximum speed.
+     */
+    @Test
+    void testCombinedFinal() {
+        // [1/2] Baseline -- no improvements
+        {
+            Scene scene = buildScene();
+            scene.geometries.buildBVH();
+            SimpleRayTracer tracer = new SimpleRayTracer(scene).setSoftShadowSamples(1);
+            System.out.println("=== [1/2] Baseline -- no AA, no SS ===");
+            long start = System.currentTimeMillis();
+            buildCameraBuilder(scene, tracer)
+                    .setAntiAliasingSamples(1).setMultithreading(-2).build()
+                    .renderImage().writeToImage("mp2_combined_OFF");
+            System.out.printf("Render time (OFF): %,d ms%n", System.currentTimeMillis() - start);
+        }
+
+        // [2/2] Full quality -- AA + Soft Shadows
+        {
+            Scene scene = buildScene();
+            scene.geometries.buildBVH();
+            SimpleRayTracer tracer = new SimpleRayTracer(scene)
+                    .setSoftShadowSamples(FINAL_SS)
+                    .setSamplingPattern(Blackboard.SamplingPattern.JITTERED);
+            System.out.printf("=== [2/2] Full quality -- AA %dx%d + SS %dx%d ===%n",
+                    FINAL_AA, FINAL_AA, FINAL_SS, FINAL_SS);
+            long start = System.currentTimeMillis();
+            buildCameraBuilder(scene, tracer)
+                    .setAntiAliasingSamples(FINAL_AA).setMultithreading(-2).build()
+                    .renderImage().writeToImage("mp2_combined_ON");
+            System.out.printf("Render time (ON): %,d ms%n", System.currentTimeMillis() - start);
+        }
+    }
+
     // ========================= Final presentation image =========================
 
     @Test
-    void
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    enderFinalPresentationImage() {
+    void renderFinalPresentationImage() {
         Scene scene = buildScene();
         scene.geometries.buildBVH();
 

@@ -33,7 +33,7 @@ import static primitives.Util.isZero;
  * camera.renderImage().writeToImage();
  * }</pre>
  */
-public class Camera implements Cloneable {
+public class Camera {
 
     // ========================= Camera Geometry =========================
 
@@ -263,39 +263,17 @@ public class Camera implements Cloneable {
 
     /**
      * Casts a ray (or beam of rays) through pixel (j, i) and writes the resulting color.
-     *
-     * <p>When Anti-Aliasing is disabled ({@code _antiAliasingSamples == 1}), a single ray
-     * is cast through the pixel center. When enabled, a beam of rays is generated via
-     * {@link Blackboard} and their colors are averaged.</p>
-     *
-     * <p>This method handles:
-     * <ul>
-     *   <li>Pixel center calculation via {@link #getPixelCenter(int, int)}</li>
-     *   <li>Sample point generation with Blackboard infrastructure</li>
-     *   <li>Ray tracing and color accumulation</li>
-     *   <li>Proper handling of zero-length direction vectors</li>
-     * </ul>
-     * </p>
+     * When anti-aliasing is enabled, multiple samples are generated via {@link Blackboard}
+     * and their colors are averaged.
      *
      * @param j column index of the pixel (0 to nX-1)
      * @param i row index of the pixel (0 to nY-1)
      */
     private void castRay(int j, int i) {
-        /* Calculate the center point of this pixel on the view plane */
         Point pixelCenter = getPixelCenter(j, i);
-
-        /*
-         * Determine the sampling area size:
-         *   _samplingAreaSize == -1  → use the pixel's physical width (default)
-         *   _samplingAreaSize ==  0  → disabled; Blackboard returns center only
-         *   _samplingAreaSize  >  0  → explicit world-unit size for sampling window
-         */
+        // _samplingAreaSize == -1 means use pixel width; 0 disables super-sampling
         double areaSize = _samplingAreaSize < 0 ? _pixelWidth : _samplingAreaSize;
 
-        /*
-         * Generate sample points across the target area using the Blackboard.
-         * When super-sampling is disabled, this returns only the center point.
-         */
         List<Point> samplePoints = new Blackboard()
                 .setCenter(pixelCenter)
                 .setSize(areaSize)
@@ -304,40 +282,18 @@ public class Camera implements Cloneable {
                 .setNumSamples(_antiAliasingSamples)
                 .generatePoints();
 
-        /*
-         * Trace rays through all sample points and accumulate colors.
-         * Skip any samples that produce zero-length direction vectors
-         * (edge case when sample coincides with camera origin).
-         */
         Color accumulatedColor = Color.BLACK;
         int tracedRays = 0;
 
         for (Point samplePoint : samplePoints) {
-            try {
-                /* Construct ray from camera through this sample point */
-                Ray ray = new Ray(_p0, samplePoint.subtract(_p0));
-
-                /* Trace ray and accumulate the resulting color */
-                accumulatedColor = accumulatedColor.add(_rayTracer.traceRay(ray));
-                tracedRays++;
-            } catch (IllegalArgumentException e) {
-                /*
-                 * Zero-length direction vector (sample coincides with camera).
-                 * This is rare but can occur with certain super-sampling patterns.
-                 * Simply skip this sample and continue.
-                 */
-                // Expected exception - sample skipped
-            }
+            // Skip the degenerate case where the sample coincides exactly with the camera
+            if (samplePoint.distanceSquared(_p0) == 0) continue;
+            Ray ray = new Ray(_p0, samplePoint.subtract(_p0));
+            accumulatedColor = accumulatedColor.add(_rayTracer.traceRay(ray));
+            tracedRays++;
         }
 
-        /*
-         * Average the accumulated color over the rays actually traced.
-         * At minimum, the central pixel-center ray succeeds when the view distance > 0,
-         * so tracedRays is guaranteed > 0.
-         */
         Color pixelColor = accumulatedColor.reduce(tracedRays > 0 ? tracedRays : 1);
-
-        /* Write the computed color to the image and report progress */
         _imageWriter.writePixel(j, i, pixelColor);
         _pixelManager.pixelDone();
     }
@@ -346,57 +302,24 @@ public class Camera implements Cloneable {
 
     /**
      * Computes the 3D center point of pixel (j, i) on the view plane.
-     *
-     * <p>The pixel center is calculated from the view-plane center by applying
-     * horizontal ({@code _vRight}) and vertical ({@code _vUp}) offsets based on
-     * the pixel's position in the image grid.</p>
-     *
-     * <p>OPTIMIZATION: Uses pre-computed center offsets ({@code _centerOffsetX},
-     * {@code _centerOffsetY}) to avoid redundant calculations across millions of
-     * pixel calls.</p>
+     * Uses pre-computed center offsets to avoid redundant division across millions of calls.
      *
      * @param j column index (0-based, left to right)
      * @param i row index    (0-based, top to bottom)
      * @return the 3D center point of pixel (j, i)
      */
     private Point getPixelCenter(int j, int i) {
-        /*
-         * Calculate pixel position relative to the view plane center.
-         * Using pre-computed center offsets (_centerOffsetX, _centerOffsetY)
-         * avoids recalculating (_nX - 1) / 2d and (_nY - 1) / 2d on every call.
-         *
-         * This single optimization saves millions of divisions per render!
-         */
         double pixelOffsetX = (j - _centerOffsetX) * _pixelWidth;
         double pixelOffsetY = -(i - _centerOffsetY) * _pixelHeight;
 
-        /* Start from the view plane center */
         Point center = _vpCenter;
-
-        /*
-         * Apply horizontal offset using the right vector only if non-zero.
-         * The isZero() guard prevents unnecessary vector operations.
-         */
-        if (!isZero(pixelOffsetX)) {
-            center = center.add(_vRight.scale(pixelOffsetX));
-        }
-
-        /*
-         * Apply vertical offset using the up vector only if non-zero.
-         * The negative sign above accounts for the inversion of screen coordinates.
-         */
-        if (!isZero(pixelOffsetY)) {
-            center = center.add(_vUp.scale(pixelOffsetY));
-        }
-
+        if (!isZero(pixelOffsetX)) center = center.add(_vRight.scale(pixelOffsetX));
+        if (!isZero(pixelOffsetY)) center = center.add(_vUp.scale(pixelOffsetY));
         return center;
     }
 
     /**
      * Constructs a single ray from the camera through the center of pixel (j, i).
-     *
-     * <p>This method is retained for compatibility with tests that construct
-     * rays directly (e.g., unit tests for ray construction geometry).</p>
      *
      * @param j column index
      * @param i row index
@@ -441,7 +364,6 @@ public class Camera implements Cloneable {
 
     /**
      * Writes the rendered image to a file with the given name.
-     * Provided for compatibility with legacy tests that pass an explicit file name.
      *
      * @param fileName the output file name (without extension)
      * @throws MissingResourceException if the image writer has not been initialized
@@ -451,13 +373,6 @@ public class Camera implements Cloneable {
             throw new MissingResourceException("Missing ImageWriter", "Camera", "imageWriter");
         }
         _imageWriter.writeToImage(fileName);
-    }
-
-    // ========================= Cloneable =========================
-
-    @Override
-    public Object clone() throws CloneNotSupportedException {
-        return super.clone();
     }
 
     // ========================= Builder =========================
@@ -736,30 +651,26 @@ public class Camera implements Cloneable {
         // -------- Build --------
 
         /**
-         * Validates all parameters and constructs the immutable {@link Camera} instance.
+         * Validates all parameters and constructs the {@link Camera} instance.
          *
          * @return the constructed camera
-         * @throws MissingResourceException  if mandatory parameters are missing
-         * @throws IllegalArgumentException  if any parameter value is invalid
+         * @throws MissingResourceException if mandatory parameters are missing
+         * @throws IllegalArgumentException if any parameter value is invalid
          */
         public Camera build() {
-            /* Ray tracer — default to SimpleRayTracer if not set */
             if (_camera._rayTracer == null) {
                 setRayTracer(new Scene("default"), RayTracerType.SIMPLE);
             }
 
-            /* Resolution and ImageWriter */
             if (_camera._nX <= 0 || _camera._nY <= 0) {
                 throw new IllegalArgumentException("Resolution must be positive");
             }
             _camera._imageWriter = new ImageWriter(_camera._nX, _camera._nY);
 
-            /* Camera position and orientation */
             if (_camera._p0 == null || _up == null) {
                 throw new MissingResourceException("Missing camera parameters", "Camera", "build");
             }
 
-            /* Derive vTo from explicit vector or target point */
             if (_to != null) {
                 _camera._vTo = _to.normalize();
             } else if (_target != null) {
@@ -768,54 +679,43 @@ public class Camera implements Cloneable {
                 throw new MissingResourceException("Missing direction", "Camera", "vTo");
             }
 
-            /* Orthonormal basis: vRight = vTo × vUp, then re-derive vUp for orthogonality */
+            // Orthonormal basis: vRight = vTo × vUp, then re-derive vUp for orthogonality
             _camera._vRight = _camera._vTo.crossProduct(_up).normalize();
             _camera._vUp    = _camera._vRight.crossProduct(_camera._vTo).normalize();
 
-            /* Optional camera rotation around vTo */
             if (!isZero(_rotationAngle)) {
-                double rad   = Math.toRadians(_rotationAngle);
-                double cos   = Util.alignZero(Math.cos(rad));
-                double sin   = Util.alignZero(Math.sin(rad));
+                double rad        = Math.toRadians(_rotationAngle);
+                double cos        = Util.alignZero(Math.cos(rad));
+                double sin        = Util.alignZero(Math.sin(rad));
                 Vector vUpOrig    = _camera._vUp;
                 Vector vRightOrig = _camera._vRight;
 
                 if (isZero(sin)) {
-                    /* 0° or 180° — scale only, no cross terms */
+                    // 0° or 180° — scale only
                     _camera._vUp    = vUpOrig.scale(cos);
                     _camera._vRight = vRightOrig.scale(cos);
                 } else if (isZero(cos)) {
-                    /* 90° or 270° — pure swap */
+                    // 90° or 270° — pure swap
                     _camera._vUp    = vRightOrig.scale(sin);
                     _camera._vRight = vUpOrig.scale(-sin);
                 } else {
-                    /* General rotation */
                     _camera._vUp    = vUpOrig.scale(cos).add(vRightOrig.scale(sin)).normalize();
                     _camera._vRight = vRightOrig.scale(cos).subtract(vUpOrig.scale(sin)).normalize();
                 }
             }
 
-            /* View plane dimensions */
             if (_camera._width <= 0 || _camera._height <= 0 || _camera._distance <= 0) {
                 throw new IllegalArgumentException("View-plane dimensions and distance must be positive");
             }
 
-            _camera._vpCenter     = _camera._p0.add(_camera._vTo.scale(_camera._distance));
-            _camera._pixelWidth   = _camera._width  / _camera._nX;
-            _camera._pixelHeight  = _camera._height / _camera._nY;
-
-            /*
-             * OPTIMIZATION: Pre-compute center offsets to avoid recalculating
-             * (_nX - 1) / 2d and (_nY - 1) / 2d millions of times during rendering.
-             */
+            _camera._vpCenter      = _camera._p0.add(_camera._vTo.scale(_camera._distance));
+            _camera._pixelWidth    = _camera._width  / _camera._nX;
+            _camera._pixelHeight   = _camera._height / _camera._nY;
+            // Pre-compute offsets to avoid dividing (nX-1)/2 and (nY-1)/2 per pixel
             _camera._centerOffsetX = (_camera._nX - 1) / 2.0;
             _camera._centerOffsetY = (_camera._nY - 1) / 2.0;
 
-            try {
-                return (Camera) _camera.clone();
-            } catch (CloneNotSupportedException e) {
-                throw new RuntimeException("Camera build failed", e);
-            }
+            return _camera;
         }
     }
 }

@@ -119,7 +119,7 @@ class MiniProject1Tests {
         Scene scene = new Scene("Solar System");
         scene.setBackground(new Color(0, 0, 0));
 
-        // ── תאורת סביבה הונמכה כמעט לאפס לחלל חשוך וקולנועי ──
+        // Ambient light kept near zero for a dark, cinematic space atmosphere
         scene.setAmbientLight(new AmbientLight(new Color(2, 2, 2), new Double3(1)));
 
         // ── Skybox ────────────────────────────────────────────────────────────
@@ -129,23 +129,22 @@ class MiniProject1Tests {
                 .setMaterial(new Material().setKD(0).setKS(0).setShininess(1)
                         .setKT(1).setTexture(galaxyTex).setEmissionTexture()));
 
-        // ── השמש (The Sun) ────────────────────────────────────────────────────
+        // ── The Sun ───────────────────────────────────────────────────────────
         final Point SUN_POS = new Point(0, -700, -350);
 
-        // השמש המקורית והנקייה - אטומה לחלוטין ושומרת על הטקסטורה המקורית
         Texture sunTex = tex("sun.jpg");
         scene.geometries.add(new Sphere(SUN_POS, 600D)
                 .setEmission(Color.BLACK)
                 .setMaterial(new Material().setKD(0.5).setKS(0.1).setShininess(10)
-                        .setKT(0) // אטומה לגמרי
+                        .setKT(0)
                         .setTexture(sunTex)
                         .setEmissionTexture())
                 .setLightSource());
 
-        // ── כוכבי הלכת - קשת עוטפת התואמת לגובה השמש ורחבה יותר כדי שתיראה ב-ViewPort ───────
+        // ── Planets arranged in a mathematical arc around the Sun ─────────────
         final double ORBIT_RADIUS = 820D;
 
-        // כספית (Mercury) (Angle: 115)
+        // Mercury (Angle: 115)
         Point pMercury = getArcPoint(SUN_POS, ORBIT_RADIUS, 115, -340);
         Texture mercuryTex = tex("mercury.jpg");
         scene.geometries.add(new Sphere(pMercury, 12D)
@@ -153,7 +152,7 @@ class MiniProject1Tests {
                 .setMaterial(new Material().setKD(0.60).setKS(0.15).setShininess(10)
                         .setTexture(mercuryTex)));
 
-        // נוגה (Venus) (Angle: 108)
+        // Venus (Angle: 108)
         Point pVenus = getArcPoint(SUN_POS, ORBIT_RADIUS, 108, -350);
         Texture venusTex = tex("venus.jpg");
         scene.geometries.add(new Sphere(pVenus, 18D)
@@ -161,7 +160,7 @@ class MiniProject1Tests {
                 .setMaterial(new Material().setKD(0.55).setKS(0.20).setShininess(20)
                         .setTexture(venusTex)));
 
-        // כדור הארץ (Earth) (Angle: 101)
+        // Earth (Angle: 101)
         Point pEarth = getArcPoint(SUN_POS, ORBIT_RADIUS, 101, -360);
         Texture earthTex = tex("earth.jpg");
         scene.geometries.add(new Sphere(pEarth, 22D)
@@ -170,7 +169,7 @@ class MiniProject1Tests {
                         .setKS(0.60).setShininess(150).setKR(0.05)
                         .setTexture(earthTex)));
 
-        // הירח (Moon) (מקיף את כדור הארץ מרחוק)
+        // Moon (orbiting Earth)
         Point pMoon = new Point(pEarth.getX() + 32, pEarth.getY() + 18, pEarth.getZ() + 20);
         Texture moonTex = tex("moon.jpg");
         scene.geometries.add(new Sphere(pMoon, 7D)
@@ -178,7 +177,7 @@ class MiniProject1Tests {
                 .setMaterial(new Material().setKD(0.70).setKS(0.10).setShininess(5)
                         .setTexture(moonTex)));
 
-        // מאדים (Mars) (Angle: 95)
+        // Mars (Angle: 95)
         Point pMars = getArcPoint(SUN_POS, ORBIT_RADIUS, 95, -370);
         Texture marsTex = tex("mars.jpg");
         scene.geometries.add(new Sphere(pMars, 17D)
@@ -186,7 +185,7 @@ class MiniProject1Tests {
                 .setMaterial(new Material().setKD(new Double3(0.70, 0.25, 0.10))
                         .setKS(0.20).setShininess(15).setTexture(marsTex)));
 
-        // צדק (Jupiter) (Angle: 87)
+        // Jupiter (Angle: 87)
         Point pJupiter = getArcPoint(SUN_POS, ORBIT_RADIUS, 87, -380);
         Texture jupiterTex = tex("jupiter.jpg");
         scene.geometries.add(new Sphere(pJupiter, 55D)
@@ -194,7 +193,7 @@ class MiniProject1Tests {
                 .setMaterial(new Material().setKD(0.68).setKS(0.30).setShininess(28)
                         .setTexture(jupiterTex)));
 
-        // שבתאי (Saturn) (Angle: 78)
+        // Saturn (Angle: 78)
         Point pSaturn = getArcPoint(SUN_POS, ORBIT_RADIUS, 78, -390);
         Texture saturnTex = tex("saturn.jpg");
         final Vector RING_AXIS = new Vector(0.05, 0.866, 0.5).normalize();
@@ -203,7 +202,7 @@ class MiniProject1Tests {
                 .setMaterial(new Material().setKD(0.72).setKS(0.38).setShininess(45)
                         .setTexture(saturnTex)));
 
-        // טבעות שבתאי
+        // Saturn's rings (4 concentric cylinders)
         scene.geometries.add(new Cylinder(
                 new Ray(new Point(pSaturn.getX(), pSaturn.getY() - 4, pSaturn.getZ()), RING_AXIS), 52, 1)
                 .setEmission(new Color(5, 4, 2))
@@ -221,7 +220,7 @@ class MiniProject1Tests {
                 .setEmission(new Color(10, 9, 7))
                 .setMaterial(new Material().setKD(new Double3(0.55, 0.50, 0.38)).setKS(0.20).setShininess(18).setKT(0.82)));
 
-        // אורנוס (Uranus) (Angle: 71)
+        // Uranus (Angle: 71)
         Point pUranus = getArcPoint(SUN_POS, ORBIT_RADIUS, 71, -380);
         Texture uranusTex = tex("uranus.jpg");
         scene.geometries.add(new Sphere(pUranus, 28D)
@@ -230,7 +229,7 @@ class MiniProject1Tests {
                         .setKS(0.45).setShininess(80).setKR(0.08)
                         .setTexture(uranusTex)));
 
-        // נפטון (Neptune) (Angle: 65)
+        // Neptune (Angle: 65)
         Point pNeptune = getArcPoint(SUN_POS, ORBIT_RADIUS, 65, -370);
         Texture neptuneTex = tex("neptune.jpg");
         scene.geometries.add(new Sphere(pNeptune, 25D)
@@ -239,26 +238,29 @@ class MiniProject1Tests {
                         .setKS(0.55).setShininess(120).setKR(0.10)
                         .setTexture(neptuneTex)));
 
-        // ── מקורות אור מותאמים למראה קולנועי דרמטי כפי שמופיע בתמונה ──────────────────────
+        // ── Lights ────────────────────────────────────────────────────────────
 
-        // 1. אור חזק שבוקע מהשמש כדי לייצר הצללות משמעותיות על הכוכבים.
+        // 1. Strong sun point light — casts dramatic shadows across all planets
         scene.lights.add(new PointLight(new Color(180, 148, 95), SUN_POS)
                 .setKl(2E-7).setKq(1E-10).setSize(120));
 
-        // 2. תאורת מילוי סביבתית - הונמכה לרמה חלשה כדי לא להרוס את צד הצל של הכוכבים (כדי לעמוד בחובה של 3 מקורות אור).
+        // 2. Weak fill light — preserves shadow sides, satisfies the 3-light requirement
         scene.lights.add(new DirectionalLight(
                 new Color(5, 5, 8), new Vector(1, -0.3, -0.5)));
 
-        // 3. תאורת הבהקה מאחור - גם היא חלשה מאוד ומוסיפה טיפת אור עדינה לקצות הכוכבים.
+        // 3. Subtle rim light from behind — adds delicate highlights to planet edges
         scene.lights.add(new SpotLight(new Color(15, 20, 40), new Point(400, 100, 0), new Vector(-1, -0.2, -0.8))
                 .setKl(1E-5).setKq(1E-7));
 
         return scene;
     }
 
-    /**
-     * Creates a Camera.Builder pre-configured for the Solar System scene.
-     */
+    /** Standard resolution for comparison renders (fast). */
+    private static final int STD_RES = 800;
+    /** High resolution for the final render — sufficient to zoom in on the Moon. */
+    private static final int HIGH_RES = 3840;
+
+    /** Camera builder at standard resolution for quick comparison tests. */
     private Camera.Builder buildCameraBuilder(Scene scene, SimpleRayTracer rayTracer) {
         return Camera.getBuilder()
                 .setRayTracer(scene, rayTracer)
@@ -266,9 +268,22 @@ class MiniProject1Tests {
                 .setDirection(new Point(0, 0, -300), Vector.AXIS_Y)
                 .setVpDistance(420)
                 .setVpSize(380, 380)
-                .setResolution(800, 800)
-                .setMultithreading(-2) // Auto-detect cores
+                .setResolution(STD_RES, STD_RES)
+                .setMultithreading(-2)
                 .setDebugPrint(5);
+    }
+
+    /** Camera builder at high resolution for the final quality render. */
+    private Camera.Builder buildHiResCameraBuilder(Scene scene, SimpleRayTracer rayTracer) {
+        return Camera.getBuilder()
+                .setRayTracer(scene, rayTracer)
+                .setLocation(new Point(0, 0, 500))
+                .setDirection(new Point(0, 0, -300), Vector.AXIS_Y)
+                .setVpDistance(420)
+                .setVpSize(380, 380)
+                .setResolution(HIGH_RES, HIGH_RES)
+                .setMultithreading(-2)
+                .setDebugPrint(1);
     }
 
     // ========================= Anti-Aliasing Tests =========================
@@ -300,11 +315,12 @@ class MiniProject1Tests {
         Scene scene = buildSpaceScene();
         SimpleRayTracer rayTracer = new SimpleRayTracer(scene);
         long start = System.currentTimeMillis();
-        buildCameraBuilder(scene, rayTracer)
+        // High-resolution render: zoom into the Moon area to verify AA smoothness
+        buildHiResCameraBuilder(scene, rayTracer)
                 .setAntiAliasingSamples(AA_FINAL).build().renderImage()
                 .writeToImage("space_with_AA_final");
-        System.out.printf("Render time (AA final %dx%d): %,d ms%n",
-                AA_FINAL, AA_FINAL, System.currentTimeMillis() - start);
+        System.out.printf("Render time (AA final %dx%d @ %dx%d): %,d ms%n",
+                AA_FINAL, AA_FINAL, HIGH_RES, HIGH_RES, System.currentTimeMillis() - start);
     }
 
     // ========================= Soft Shadows Tests =========================
@@ -371,10 +387,12 @@ class MiniProject1Tests {
 
     /**
      * PRIMARY DELIVERABLE — Combined Anti-Aliasing and Soft Shadows.
+     * The "ON" variant renders at high resolution (3840x3840) so the Moon
+     * can be examined in full detail by zooming in with an image viewer.
      */
     @Test
     void testTempleCombinedFinal() {
-        // [1/2] Baseline — no improvements
+        // [1/2] Baseline — no improvements, standard resolution
         {
             Scene scene = buildSpaceScene();
             SimpleRayTracer rayTracer = new SimpleRayTracer(scene).setSoftShadowSamples(1);
@@ -386,15 +404,17 @@ class MiniProject1Tests {
             System.out.printf("Render time (OFF): %,d ms%n", System.currentTimeMillis() - start);
         }
 
-        // [2/2] Full quality — AA + Soft Shadows combined
+        // [2/2] Full quality — AA + Soft Shadows at high resolution (3840x3840)
         {
             Scene scene = buildSpaceScene();
             SimpleRayTracer rayTracer = new SimpleRayTracer(scene)
                     .setSoftShadowSamples(COMBINED_SAMPLES);
-            System.out.printf("=== [2/2] Full quality — AA %dx%d + SS %dx%d ===%n",
-                    COMBINED_SAMPLES, COMBINED_SAMPLES, COMBINED_SAMPLES, COMBINED_SAMPLES);
+            System.out.printf("=== [2/2] Full quality — AA %dx%d + SS %dx%d @ %dx%d ===%n",
+                    COMBINED_SAMPLES, COMBINED_SAMPLES,
+                    COMBINED_SAMPLES, COMBINED_SAMPLES,
+                    HIGH_RES, HIGH_RES);
             long start = System.currentTimeMillis();
-            buildCameraBuilder(scene, rayTracer)
+            buildHiResCameraBuilder(scene, rayTracer)
                     .setAntiAliasingSamples(COMBINED_SAMPLES).build().renderImage()
                     .writeToImage("space_combined_ON");
             System.out.printf("Render time (ON): %,d ms%n", System.currentTimeMillis() - start);
