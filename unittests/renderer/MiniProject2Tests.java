@@ -951,7 +951,35 @@ class MiniProject2Tests {
     // ========================= Final presentation image =========================
 
     @Test
-    void renderFinalPresentationImage() {
+    void
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    enderFinalPresentationImage() {
         Scene scene = buildScene();
         scene.geometries.buildBVH();
 
