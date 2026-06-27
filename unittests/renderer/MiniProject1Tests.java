@@ -30,17 +30,26 @@ import java.io.File;
  */
 class MiniProject1Tests {
 
-    MiniProject1Tests() {}
+    MiniProject1Tests() {
+    }
 
     // ========================= Sample-count constants =========================
 
-    /** Demo-quality sample grid: 9x9 = 81 rays. Visible improvement, fast render. */
+    /**
+     * Demo-quality sample grid: 9x9 = 81 rays. Visible improvement, fast render.
+     */
     private static final int SAMPLES_DEMO = 9;
-    /** Final AA-only sample grid: 17x17 = 289 rays. */
+    /**
+     * Final AA-only sample grid: 17x17 = 289 rays.
+     */
     private static final int AA_FINAL = 17;
-    /** Final SS-only sample grid: 9x9 = 81 shadow rays per light. */
+    /**
+     * Final SS-only sample grid: 9x9 = 81 shadow rays per light.
+     */
     private static final int SS_FINAL = 9;
-    /** Combined AA+SS sample grid: 3x3 = 9 rays each. */
+    /**
+     * Combined AA+SS sample grid: 3x3 = 9 rays each.
+     */
     private static final int COMBINED_SAMPLES = 3;
 
     // ========================= Texture helpers =========================
@@ -54,20 +63,25 @@ class MiniProject1Tests {
     private static Texture tex(String filename) {
         File f = new File(TEX_DIR + filename);
         if (!isValidJpeg(f)) generateProceduralTexture(f.getAbsolutePath(), filename);
-        try   { return new Texture(f.getAbsolutePath()); }
-        catch (Exception e) { return null; }
+        try {
+            return new Texture(f.getAbsolutePath());
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     private static boolean isValidJpeg(File f) {
         if (!f.exists() || f.length() < 3) return false;
         try (var is = new java.io.FileInputStream(f)) {
             return is.read() == 0xFF && is.read() == 0xD8;
-        } catch (Exception e) { return false; }
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     private static void generateProceduralTexture(String absPath, String filename) {
         String lower = filename.toLowerCase();
-        if      (lower.contains("galaxy") || lower.contains("space"))
+        if (lower.contains("galaxy") || lower.contains("space"))
             primitives.TextureGenerator.generateGalaxy(absPath);
         else if (lower.contains("sun"))
             primitives.TextureGenerator.generateSun(absPath);
@@ -255,12 +269,18 @@ class MiniProject1Tests {
         return scene;
     }
 
-    /** Standard resolution for comparison renders (fast). */
+    /**
+     * Standard resolution for comparison renders (fast).
+     */
     private static final int STD_RES = 800;
-    /** High resolution for the final render — sufficient to zoom in on the Moon. */
-    private static final int HIGH_RES = 3840;
+    /**
+     * High resolution for the final render — sufficient to zoom in on the Moon.
+     */
+    private static final int HIGH_RES = 8000;
 
-    /** Camera builder at standard resolution for quick comparison tests. */
+    /**
+     * Camera builder at standard resolution for quick comparison tests.
+     */
     private Camera.Builder buildCameraBuilder(Scene scene, SimpleRayTracer rayTracer) {
         return Camera.getBuilder()
                 .setRayTracer(scene, rayTracer)
@@ -273,7 +293,9 @@ class MiniProject1Tests {
                 .setDebugPrint(5);
     }
 
-    /** Camera builder at high resolution for the final quality render. */
+    /**
+     * Camera builder at high resolution for the final quality render.
+     */
     private Camera.Builder buildHiResCameraBuilder(Scene scene, SimpleRayTracer rayTracer) {
         return Camera.getBuilder()
                 .setRayTracer(scene, rayTracer)
