@@ -6,10 +6,10 @@
 
 ## Authors
 
-| Name | Student ID |
-|------|------------|
-| Osnat Zimmerman | 328494505 |
-| Agam Tzaban | 325818706 |
+| Name |
+|------|
+| Osnat Zimmerman |
+| Agam Tzaban |
 
 ---
 
@@ -352,6 +352,9 @@ Located at: `unittests/geometries/impl/BVHNodeTest.java`
 |------|----------------|
 | `testManualHierarchyFindsCorrectIntersections` | A manually built BVH tree finds the correct geometry and cleanly rejects misses |
 | `testAutomaticBuildMatchesLinearBruteForce` | The automatic builder returns exactly the same intersections as brute-force linear scan across 40 spheres |
+
+### The final image
+<img width="750" height="469" alt="mp2_final_presentation" src="https://github.com/user-attachments/assets/e91ed5ac-5202-453f-b982-4455b39e7ff6" />
 
 ---
 
