@@ -50,19 +50,18 @@ class MiniProject2Tests {
     }
 
     /**
-     * Sunset desert palette: burnt-orange low, warm gold high, atmospheric haze at distance.
+     * Sunset desert palette: burnt-orange low, warm gold high.
      * Uses a sin-based hash to decorrelate adjacent triangles that share the same row,
      * ensuring each triangle has a visually distinct colour rather than a banded look.
+     * No distance haze -- avoids the horizontal colour band that haze produces.
      */
     private static Color terrC(double x, double z, double h) {
-        double t    = Math.max(0, Math.min(1, (h + 15.2) / 30.4));
-        // Hash that gives independent pseudo-random value per triangle centroid
-        double rf   = frac(Math.sin(x * 127.1 + z * 311.7) * 43758.5);
-        double haze = Math.max(0, Math.min(1, (-z - 20) / 260.0));
+        double t  = Math.max(0, Math.min(1, (h + 15.2) / 30.4));
+        double rf = frac(Math.sin(x * 127.1 + z * 311.7) * 43758.5);
         return new Color(
-            Math.min(255, (int)(100 + t * 105 + rf * 45 + haze * 55)),
-            Math.min(255, (int)( 45 + t *  65 + rf * 22 + haze * 40)),
-            Math.min(255, (int)(  8 + t *  18 + rf * 10 + haze * 30)));
+            Math.min(255, (int)(185 + t * 50 + rf * 18)),
+            Math.min(255, (int)( 95 + t * 35 + rf *  9)),
+            Math.min(255, (int)( 22 + t * 12 + rf *  4)));
     }
 
     /** 3-stop sunset gradient: horizon gold-orange, mid red-orange, zenith deep purple. */
@@ -346,11 +345,15 @@ class MiniProject2Tests {
         // Tessellate quads into two SmoothTriangles each
         for (int r=0; r<sz-1; r++) for (int c=0; c<sz-1; c++) {
             double avgH = (h[r][c]+h[r][c+1]+h[r+1][c]+h[r+1][c+1])*0.25;
-            if (avgH < 0.5) continue; // skip flat background quads
+            if (avgH < 0.05) continue; // skip truly flat quads only
             double litF = Math.max(0, Math.min(1, ((xMin+c*dx)+222)/444.0));
-            int cr = (int)(55 + litF*45 + avgH*0.10);
-            int cg = (int)(22 + litF*22 + avgH*0.04);
-            int cb = (int)(12 + litF*10 + avgH*0.02);
+            // Blend from sandy terrain colour at the base to dark rock at peak.
+            // heightRatio reaches 1.0 at avgH=25, eliminating the colour seam
+            // where mountain base meets terrain edge.
+            double heightRatio = Math.min(1.0, avgH / 25.0);
+            int cr = (int)((200*(1-heightRatio) + (55 + litF*45)*heightRatio) + avgH*0.10);
+            int cg = (int)((100*(1-heightRatio) + (22 + litF*22)*heightRatio) + avgH*0.04);
+            int cb = (int)(( 30*(1-heightRatio) + (12 + litF*10)*heightRatio) + avgH*0.02);
             Color mc = new Color(Math.min(255,cr), Math.min(255,cg), Math.min(255,cb));
 
             // Winding Triangle(p00,p11,p01) and Triangle(p00,p10,p11) -> upward face normals
