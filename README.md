@@ -234,6 +234,9 @@ Planets are arranged in a mathematical arc around the Sun.
 | `testTempleJitteredVsGrid` | Compares JITTERED vs GRID sampling patterns |
 | `testTempleCombinedFinal` | Full quality: AA + Soft Shadows combined |
 
+###The final image
+
+
 ---
 
 ## Mini-Project 2 — Performance Acceleration
